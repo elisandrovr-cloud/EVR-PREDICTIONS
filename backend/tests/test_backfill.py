@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 
 from app.application import seed
-from app.infrastructure.db.models import PlayerStat, Prediction
+from app.infrastructure.db.models import Game, PlayerStat, Prediction
 
 
 def _batter(pid: int, name: str, slot: int) -> dict:
@@ -71,6 +71,28 @@ class FakeMlb:
         return {"stats": [{"splits": [{"stat": stat}]}]}
 
 
+class FakeMlbNoLineup(FakeMlb):
+    """Official lineups not posted yet — only rosters are available."""
+
+    def schedule(self, day):
+        games = super().schedule(day)
+        for g in games:
+            g["lineups"] = {}
+        return games
+
+    def roster(self, team_id):
+        base = 100 if team_id == 147 else 200
+        names = ["Bat One", "Bat Two", "Bat Three", "Bat Four", "Bat Five", "Bat Six", "Bat Seven", "Bat Eight"]
+        players = [
+            {"person": {"id": base + i, "fullName": f"{name} ({team_id})"},
+             "position": {"abbreviation": "OF", "type": "Outfielder"}}
+            for i, name in enumerate(names)
+        ]
+        players.append({"person": {"id": base + 90, "fullName": "Reliever"},
+                        "position": {"abbreviation": "P", "type": "Pitcher"}})  # filtered out
+        return players
+
+
 class FakeWeather:
     def conditions_for_venue(self, venue):
         return {}
@@ -79,6 +101,15 @@ class FakeWeather:
 class FakeRegistry:
     def __init__(self):
         self.mlb = FakeMlb()
+        self.weather = FakeWeather()
+
+    def statuses(self):
+        return []
+
+
+class FakeRegistryNoLineup:
+    def __init__(self):
+        self.mlb = FakeMlbNoLineup()
         self.weather = FakeWeather()
 
     def statuses(self):
@@ -132,6 +163,22 @@ class TestBackfill:
         judge = next(r for r in board if r["player"] == "Aaron Judge")
         assert judge["last5_hits"] == [1, 2, 0, 3, 1]
         assert judge["team"] == "New York Yankees"
+
+    def test_hits_fill_from_roster_when_no_official_lineup(self, db, monkeypatch) -> None:
+        """Hit props must appear all day, even before official lineups are posted."""
+        monkeypatch.setattr(seed.settings, "SEED_BACKFILL_MIN_INTERVAL", 0.0)
+        reg = FakeRegistryNoLineup()
+        _seed_then_backfill(db, reg, passes=4)
+
+        # game got a projected lineup from the roster
+        game = db.scalar(select(Game).where(Game.game_pk == 500100))
+        assert game.lineups.get("projected") is True
+        assert len(game.lineups["home"]) >= 6
+
+        hit_preds = db.scalars(
+            select(Prediction).where(Prediction.market == "player_hits", Prediction.line <= 0.5)
+        ).all()
+        assert len(hit_preds) >= 6
 
     def test_strikeout_and_hits_agent_parlays_appear(self, client, db, monkeypatch) -> None:
         monkeypatch.setattr(seed.settings, "SEED_BACKFILL_MIN_INTERVAL", 0.0)

@@ -109,6 +109,29 @@ def _advance_backfill(db: Session, reg: ProviderRegistry, today: date) -> int:
         select(PlayerStat).where(PlayerStat.kind == "team", PlayerStat.scope == "offense"))}
     have_pen = {r.team_mlb_id for r in db.scalars(select(BullpenStat))}
 
+    start = time.monotonic()
+    processed = 0
+    limit = settings.SEED_BACKFILL_MAX_ITEMS
+    budget = settings.SEED_BACKFILL_SECONDS
+
+    def over_budget() -> bool:
+        return processed >= limit or (time.monotonic() - start) > budget
+
+    # Step 0: give games without a lineup a projected one from the team rosters,
+    # so hit props exist all day (official lineups post only ~3h before first pitch).
+    for g in games:
+        if over_budget():
+            break
+        lu = g.lineups or {}
+        if lu.get("home") and lu.get("away"):
+            continue
+        home_b = ingestion.roster_position_players(reg, g.home_team_mlb_id)
+        away_b = ingestion.roster_position_players(reg, g.away_team_mlb_id)
+        if home_b or away_b:
+            g.lineups = {"home": home_b, "away": away_b, "projected": True}
+            db.commit()
+            processed += 1
+
     pitchers: list[int] = []
     batters: list[tuple[int, str | None, int | None]] = []
     teams: list[int] = []
@@ -127,14 +150,6 @@ def _advance_backfill(db: Session, reg: ProviderRegistry, today: date) -> int:
         for tid in (g.home_team_mlb_id, g.away_team_mlb_id):
             if tid and (tid not in have_team or tid not in have_pen) and tid not in teams:
                 teams.append(tid)
-
-    start = time.monotonic()
-    processed = 0
-    limit = settings.SEED_BACKFILL_MAX_ITEMS
-    budget = settings.SEED_BACKFILL_SECONDS
-
-    def over_budget() -> bool:
-        return processed >= limit or (time.monotonic() - start) > budget
 
     for tid in teams:  # team context first — cheap and improves every prediction
         if over_budget():

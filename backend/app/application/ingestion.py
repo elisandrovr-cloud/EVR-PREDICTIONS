@@ -114,7 +114,10 @@ def sync_schedule(db: Session, day: date, registry: ProviderRegistry | None = No
         row.away_score = away.get("score")
         row.home_pitcher_mlb_id = home_p or row.home_pitcher_mlb_id
         row.away_pitcher_mlb_id = away_p or row.away_pitcher_mlb_id
-        row.lineups = lineups
+        # Only overwrite lineups when official ones arrive — never clobber a
+        # projected (roster-based) lineup with an empty official one.
+        if lineups["home"] or lineups["away"]:
+            row.lineups = lineups
         row.lineup_confirmed = lineup_confirmed or row.lineup_confirmed
         linescore = g.get("linescore") or {}
         if linescore:
@@ -232,6 +235,24 @@ def sync_batter_stats(db: Session, batter_id: int, registry: ProviderRegistry | 
             }
             _upsert_stat(db, batter_id, "batting", "season", {k: v for k, v in stats.items() if v is not None})
     db.commit()
+
+
+def roster_position_players(registry: ProviderRegistry, team_id: int) -> list[dict[str, Any]]:
+    """Active-roster position players (non-pitchers) as a projected batting order,
+    used when official lineups aren't posted yet so hit props exist all day."""
+    try:
+        roster = registry.mlb.roster(team_id)
+    except Exception:  # noqa: BLE001
+        return []
+    out: list[dict[str, Any]] = []
+    for entry in roster:
+        pos = entry.get("position") or {}
+        if pos.get("type") == "Pitcher" or pos.get("abbreviation") in ("P", "SP", "RP"):
+            continue
+        person = entry.get("person") or {}
+        if person.get("id") and person.get("fullName"):
+            out.append({"id": person["id"], "name": person["fullName"], "position": pos.get("abbreviation")})
+    return out[:12]
 
 
 def sync_batter_recent_form(db: Session, batter_id: int, registry: ProviderRegistry | None = None) -> None:

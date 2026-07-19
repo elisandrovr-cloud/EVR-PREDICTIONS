@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity,
   BarChart3,
   Brain,
   CalendarDays,
   Layers,
   LineChart,
   Settings,
+  Sparkles,
   Swords,
   Target,
   Users,
@@ -20,7 +20,7 @@ import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/", label: "Terminal", icon: Activity },
+  { href: "/", label: "Inicio (Fácil)", icon: Sparkles },
   { href: "/games", label: "Juegos", icon: CalendarDays },
   { href: "/predictions", label: "Predicciones", icon: Target },
   { href: "/parlays", label: "Parlays", icon: Layers },
