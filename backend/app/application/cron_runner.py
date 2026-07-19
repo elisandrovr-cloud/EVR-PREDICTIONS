@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.application import ingestion
+from app.application.agents import build_agent_parlays
 from app.application.parlay_service import build_parlays_for_day
 from app.application.prediction_service import generate_for_day
 from app.application.results_service import close_day
@@ -43,8 +44,9 @@ def run_refresh() -> dict[str, Any]:
         ingestion.record_source_statuses(db)
         preds = generate_for_day(db, today)
         parlays = build_parlays_for_day(db, today)
+        agents = build_agent_parlays(db, today)
     return {**sched, "odds_captured": odds, "weather_updates": weather,
-            "predictions": preds.get("predictions", 0), "parlays": parlays}
+            "predictions": preds.get("predictions", 0), "parlays": parlays, "agent_parlays": agents}
 
 
 def run_slate_stats() -> dict[str, int]:
@@ -67,6 +69,7 @@ def run_slate_stats() -> dict[str, int]:
                     if batter.get("id"):
                         try:
                             ingestion.sync_batter_stats(db, batter["id"])
+                            ingestion.sync_batter_recent_form(db, batter["id"])
                             batters += 1
                         except Exception:  # noqa: BLE001
                             logger.warning("batter stat sync failed", extra={"player": batter.get("id")})
@@ -76,7 +79,12 @@ def run_slate_stats() -> dict[str, int]:
                 ingestion.sync_bullpen(db, tid)
             except Exception:  # noqa: BLE001
                 logger.warning("team stat sync failed", extra={"team": tid})
-    return {"pitchers": pitchers, "batters": batters, "teams": len(team_ids)}
+        # With fresh stats + recent form in place, regenerate props and re-run the debate.
+        preds = generate_for_day(db, date.today())
+        build_parlays_for_day(db, date.today())
+        build_agent_parlays(db, date.today())
+    return {"pitchers": pitchers, "batters": batters, "teams": len(team_ids),
+            "predictions": preds.get("predictions", 0)}
 
 
 def run_close_day() -> dict[str, Any]:

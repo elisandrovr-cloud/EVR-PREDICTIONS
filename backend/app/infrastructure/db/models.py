@@ -245,6 +245,30 @@ class Parlay(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class AgentParlay(Base):
+    """A parlay chosen by the daily agent debate, per category + risk style."""
+
+    __tablename__ = "agent_parlays"
+    __table_args__ = (UniqueConstraint("game_date", "category", "style", name="uq_agent_parlay"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_date: Mapped[date] = mapped_column(Date, index=True)
+    category: Mapped[str] = mapped_column(String(20), index=True)  # hits | strikeouts | games | mixed
+    style: Mapped[str] = mapped_column(String(12))  # safe | aggressive
+    winning_agent: Mapped[str] = mapped_column(String(40))
+    legs: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    combined_probability: Mapped[float] = mapped_column(Float)
+    combined_decimal_odds: Mapped[float] = mapped_column(Float)
+    expected_value: Mapped[float] = mapped_column(Float)
+    confidence: Mapped[float] = mapped_column(Float)
+    risk: Mapped[str] = mapped_column(String(10))
+    debate: Mapped[list[Any]] = mapped_column(JSON, default=list)  # [{agent, argument, score}]
+    explanation: Mapped[str] = mapped_column(Text, default="")
+    settled: Mapped[bool] = mapped_column(Boolean, default=False)
+    outcome: Mapped[str | None] = mapped_column(String(10))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ModelWeight(Base):
     __tablename__ = "model_weights"
     __table_args__ = (UniqueConstraint("model_name", "market", name="uq_model_market"),)

@@ -7,10 +7,10 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
 
 from app.api.deps import DbDep
-from app.api.schemas import PredictionOut
+from app.api.schemas import HitsBoardRow, PredictionOut
 from app.application.seed import ensure_today_seeded
 from app.domain.entities import Market
-from app.infrastructure.db.models import Prediction
+from app.infrastructure.db.models import Player, PlayerStat, Prediction, Team
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
 
@@ -72,6 +72,59 @@ def top_board(board: str, db: DbDep, day: date | None = None) -> list[Prediction
         .limit(top_n)
     ).all()
     return [PredictionOut.model_validate(r) for r in rows]
+
+
+@router.get("/hits-board", response_model=list[HitsBoardRow])
+def hits_board(db: DbDep, day: date | None = None) -> list[HitsBoardRow]:
+    """Every batter playing today ranked by hit probability (highest first), with
+    each batter's hit total over their last 5 games."""
+    d = day or date.today()
+    if d == date.today():
+        ensure_today_seeded(db)
+    preds = db.scalars(
+        select(Prediction)
+        .where(
+            Prediction.game_date == d,
+            Prediction.market == Market.PLAYER_HITS.value,
+            Prediction.line <= 0.5,  # the "1+ hit" line
+        )
+        .order_by(Prediction.probability.desc())
+    ).all()
+    if not preds:
+        return []
+    player_ids = [p.player_mlb_id for p in preds if p.player_mlb_id]
+    players = {pl.mlb_id: pl for pl in db.scalars(select(Player).where(Player.mlb_id.in_(player_ids)))}
+    teams = {t.mlb_id: t.name for t in db.scalars(select(Team))}
+    stats = {
+        s.player_mlb_id: s.stats
+        for s in db.scalars(
+            select(PlayerStat).where(
+                PlayerStat.player_mlb_id.in_(player_ids),
+                PlayerStat.kind == "batting",
+                PlayerStat.scope == "season",
+            )
+        )
+    }
+    rows: list[HitsBoardRow] = []
+    for p in preds:
+        pl = players.get(p.player_mlb_id or 0)
+        st = stats.get(p.player_mlb_id or 0, {})
+        name = pl.full_name if pl else p.selection.replace(" 1+ hit", "")
+        rows.append(HitsBoardRow(
+            player_mlb_id=p.player_mlb_id,
+            player=name,
+            team=teams.get(pl.team_mlb_id) if pl and pl.team_mlb_id else None,
+            game_pk=p.game_pk,
+            probability=p.probability,
+            fair_odds=p.fair_odds,
+            book_odds=p.book_odds,
+            confidence=p.confidence,
+            is_value_bet=p.is_value_bet,
+            explanation=p.explanation,
+            last5_hits=list(st.get("last5_hits", [])),
+            last5_total=int(st.get("last5_total_hits", 0)),
+        ))
+    return rows
 
 
 @router.get("/game/{game_pk}", response_model=list[PredictionOut])

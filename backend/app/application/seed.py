@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.application import ingestion
+from app.application.agents import build_agent_parlays
 from app.application.parlay_service import build_parlays_for_day
 from app.application.prediction_service import generate_for_day
 from app.core.config import settings
@@ -63,6 +64,7 @@ def ensure_today_seeded(db: Session, registry: ProviderRegistry | None = None) -
         ) == 0:
             summary["predictions"] = generate_for_day(db, today)
             summary["parlays"] = build_parlays_for_day(db, today)
+            summary["agent_parlays"] = build_agent_parlays(db, today)
             summary["seeded"] = True
         return summary
     except Exception as exc:  # noqa: BLE001 — seeding must never break a read

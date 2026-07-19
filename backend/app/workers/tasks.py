@@ -72,6 +72,7 @@ def refresh_slate_stats() -> dict[str, int]:
                     if batter.get("id"):
                         try:
                             ingestion.sync_batter_stats(db, batter["id"])
+                            ingestion.sync_batter_recent_form(db, batter["id"])
                             batters += 1
                         except Exception:  # noqa: BLE001
                             logger.warning("batter stat sync failed", extra={"player": batter.get("id")})
@@ -94,10 +95,13 @@ def generate_predictions(game_pk: int | None = None) -> dict[str, int]:
 
 @celery_app.task(name="app.workers.tasks.build_parlays")
 def build_parlays() -> dict[str, int]:
+    from app.application.agents import build_agent_parlays
     from app.application.parlay_service import build_parlays_for_day
 
     with SessionLocal() as db:
-        return {"parlays": build_parlays_for_day(db, date.today())}
+        parlays = build_parlays_for_day(db, date.today())
+        agents = build_agent_parlays(db, date.today())
+        return {"parlays": parlays, "agent_parlays": agents}
 
 
 @celery_app.task(name="app.workers.tasks.drain_domain_events")

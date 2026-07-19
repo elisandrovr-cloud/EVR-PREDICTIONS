@@ -123,9 +123,32 @@ def sync_schedule(db: Session, day: date, registry: ProviderRegistry | None = No
         for off in officials:
             if (off.get("officialType") == "Home Plate") and off.get("official"):
                 row.umpire = {"name": off["official"].get("fullName")}
+
+        # Upsert player identities (names) from lineups + probable pitchers.
+        for side, team_key in (("home", home), ("away", away)):
+            team_id = (team_key.get("team") or {}).get("id")
+            for slot in lineups.get(side, []):
+                _upsert_player(db, slot.get("id"), slot.get("name"), team_id, slot.get("position"))
+            pp = team_key.get("probablePitcher") or {}
+            _upsert_player(db, pp.get("id"), pp.get("fullName"), team_id, "P")
         stats["games"] += 1
     db.commit()
     return stats
+
+
+def _upsert_player(db: Session, mlb_id: int | None, name: str | None,
+                   team_mlb_id: int | None, position: str | None) -> None:
+    if not mlb_id or not name:
+        return
+    row = db.scalar(select(Player).where(Player.mlb_id == mlb_id))
+    if row is None:
+        row = Player(mlb_id=mlb_id, full_name=name)
+        db.add(row)
+    row.full_name = name
+    if team_mlb_id:
+        row.team_mlb_id = team_mlb_id
+    if position:
+        row.position = position
 
 
 def sync_weather(db: Session, day: date, registry: ProviderRegistry | None = None) -> int:
@@ -209,6 +232,30 @@ def sync_batter_stats(db: Session, batter_id: int, registry: ProviderRegistry | 
                 "sb_per_game": float(s.get("stolenBases") or 0) / games,
             }
             _upsert_stat(db, batter_id, "batting", "season", {k: v for k, v in stats.items() if v is not None})
+    db.commit()
+
+
+def sync_batter_recent_form(db: Session, batter_id: int, registry: ProviderRegistry | None = None) -> None:
+    """Store the batter's hit count for their last 5 games (newest first) so the
+    Hits board can show recent form alongside the model probability."""
+    reg = registry or get_registry()
+    splits = reg.mlb.player_game_log(batter_id, group="hitting")
+    games = []
+    for split in splits:
+        s = split.get("stat", {})
+        games.append({
+            "date": split.get("date"),
+            "hits": int(s.get("hits") or 0),
+            "ab": int(s.get("atBats") or 0),
+            "opponent": (split.get("opponent") or {}).get("name"),
+        })
+    games = list(reversed(games))[:5]  # game logs come oldest-first; keep newest 5
+    last5 = list(reversed(games))
+    _upsert_stat(db, batter_id, "batting", "season", {
+        "last5_hits": [g["hits"] for g in last5],
+        "last5_games": last5,
+        "last5_total_hits": sum(g["hits"] for g in last5),
+    })
     db.commit()
 
 

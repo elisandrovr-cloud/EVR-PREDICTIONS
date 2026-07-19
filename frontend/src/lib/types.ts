@@ -125,6 +125,48 @@ export interface Parlay {
   outcome: string | null;
 }
 
+export interface HitsBoardRow {
+  player_mlb_id: number | null;
+  player: string;
+  team: string | null;
+  game_pk: number;
+  probability: number;
+  fair_odds: number;
+  book_odds: number | null;
+  confidence: number;
+  is_value_bet: boolean;
+  explanation: string;
+  last5_hits: number[];
+  last5_total: number;
+}
+
+export interface DebateEntry {
+  agent: string;
+  tagline: string;
+  argument: string;
+  score: number;
+  won: boolean;
+  metrics: { probability: number; decimal_odds: number; ev: number };
+}
+
+export interface AgentParlay {
+  id: number;
+  game_date: string;
+  category: "hits" | "strikeouts" | "games" | "mixed" | string;
+  style: "safe" | "aggressive" | string;
+  winning_agent: string;
+  legs: ParlayLeg[];
+  combined_probability: number;
+  combined_decimal_odds: number;
+  expected_value: number;
+  confidence: number;
+  risk: string;
+  debate: DebateEntry[];
+  explanation: string;
+  settled: boolean;
+  outcome: string | null;
+}
+
 export interface OddsQuote {
   game_pk: number;
   book: string;

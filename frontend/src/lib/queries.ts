@@ -5,10 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import type {
+  AgentParlay,
   Bankroll,
   Bet,
   EngineMetric,
   Game,
+  HitsBoardRow,
   ModelWeight,
   OddsQuote,
   Parlay,
@@ -64,6 +66,20 @@ export const useGamePredictions = (gamePk: number) =>
 
 export const useParlays = () =>
   useQuery({ queryKey: ["parlays"], queryFn: () => api<Parlay[]>("/parlays/daily"), refetchInterval: LIVE_MS });
+
+export const useHitsBoard = () =>
+  useQuery({
+    queryKey: ["predictions", "hits-board"],
+    queryFn: () => api<HitsBoardRow[]>("/predictions/hits-board"),
+    refetchInterval: LIVE_MS,
+  });
+
+export const useAgentParlays = () =>
+  useQuery({
+    queryKey: ["parlays", "agents"],
+    queryFn: () => api<AgentParlay[]>("/parlays/agents"),
+    refetchInterval: LIVE_MS,
+  });
 
 export const useEngineMetrics = (days = 30) =>
   useQuery({

@@ -121,6 +121,50 @@ class ParlayOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class HitsBoardRow(BaseModel):
+    player_mlb_id: int | None
+    player: str
+    team: str | None
+    game_pk: int
+    probability: float
+    fair_odds: float
+    book_odds: float | None
+    confidence: float
+    is_value_bet: bool
+    explanation: str
+    last5_hits: list[int] = []
+    last5_total: int = 0
+
+
+class DebateEntry(BaseModel):
+    agent: str
+    tagline: str
+    argument: str
+    score: float
+    won: bool
+    metrics: dict[str, float]
+
+
+class AgentParlayOut(BaseModel):
+    id: int
+    game_date: date
+    category: str
+    style: str
+    winning_agent: str
+    legs: list[Any]
+    combined_probability: float
+    combined_decimal_odds: float
+    expected_value: float
+    confidence: float
+    risk: str
+    debate: list[DebateEntry]
+    explanation: str
+    settled: bool
+    outcome: str | None
+
+    model_config = {"from_attributes": True}
+
+
 class OddsQuoteOut(BaseModel):
     game_pk: int
     book: str
