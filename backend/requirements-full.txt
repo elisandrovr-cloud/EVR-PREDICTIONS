@@ -1,0 +1,9 @@
+# Full dependency set for the Docker / container deployment: the slim base plus
+# the gradient-boosting libraries the model zoo uses when available, pandas, and
+# the migration tooling. Vercel installs the slim requirements.txt instead.
+-r requirements.txt
+xgboost==2.1.3
+lightgbm==4.5.0
+catboost==1.2.7
+pandas==2.2.3
+alembic==1.14.0

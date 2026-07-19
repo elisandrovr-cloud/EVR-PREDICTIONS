@@ -1,10 +1,15 @@
+# Base dependency set — installed by Vercel (native FastAPI runtime) and CI.
+# Deliberately slim to stay under Vercel's serverless function size limit:
+# XGBoost / LightGBM / CatBoost and pandas are NOT here. The model zoo falls back
+# to scikit-learn's GradientBoosting when those are absent (app/ml/model_zoo.py),
+# so every ensemble vote is still produced. The Docker/container deployment
+# installs requirements-full.txt, which adds the boosting libraries.
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
 pydantic==2.10.4
 pydantic-settings==2.7.0
 SQLAlchemy==2.0.36
 psycopg2-binary==2.9.10
-alembic==1.14.0
 redis==5.2.1
 celery==5.4.0
 httpx==0.28.1
@@ -14,11 +19,7 @@ bcrypt==4.0.1
 python-multipart==0.0.20
 email-validator==2.2.0
 numpy==1.26.4
-pandas==2.2.3
 scikit-learn==1.5.2
-xgboost==2.1.3
-lightgbm==4.5.0
-catboost==1.2.7
 joblib==1.4.2
 tenacity==9.0.0
 python-json-logger==3.2.1
