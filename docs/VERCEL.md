@@ -123,10 +123,15 @@ diagnóstico:
    - `config.cron_enabled` / `odds_enabled` / `weather_enabled` — qué integraciones están activas.
    - `hint` — el siguiente paso concreto según lo que falte.
 
-> El auto-seed genera predicciones **a nivel de juego** (moneyline, run line,
-> over/under, primera entrada) usando promedios de liga si aún no hay stats. Los
-> props de jugador y las stats reales los rellena el cron `stats`/`refresh` (o
-> `refresh_slate_stats` en el contenedor) en cuanto corre.
+> El auto-seed genera al instante las predicciones **a nivel de juego** (moneyline,
+> run line, over/under, primera entrada). Los **props de jugador, el tablero de
+> Hits (con la forma de los últimos 5) y los parlays de agentes de hits/ponches**
+> se llenan **solos** mediante un *backfill progresivo*: cada carga de la app
+> sincroniza un lote de stats de jugadores acotado por tiempo (para no exceder el
+> timeout serverless) y regenera los juegos que ya están listos. En unos minutos
+> de navegación normal (el frontend refresca cada 60 s) la jornada queda completa,
+> sin cron ni disparo manual. El cron `stats`/`refresh` sigue haciendo lo mismo en
+> bloque cuando corre.
 
 ## Recomendación
 
