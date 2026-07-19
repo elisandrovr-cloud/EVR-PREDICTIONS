@@ -1,0 +1,108 @@
+name: evr-mlb-ai-pro
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-evr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evr_secret_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-evr_mlb}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evr} -d ${POSTGRES_DB:-evr_mlb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-evr}:${POSTGRES_PASSWORD:-evr_secret_change_me}@postgres:5432/${POSTGRES_DB:-evr_mlb}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - models-store:/app/models_store
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app worker --loglevel=INFO --concurrency=4
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-evr}:${POSTGRES_PASSWORD:-evr_secret_change_me}@postgres:5432/${POSTGRES_DB:-evr_mlb}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - models-store:/app/models_store
+
+  beat:
+    build: ./backend
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app beat --loglevel=INFO
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-evr}:${POSTGRES_PASSWORD:-evr_secret_change_me}@postgres:5432/${POSTGRES_DB:-evr_mlb}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: /api/v1
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: /api/v1
+    depends_on:
+      - backend
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  postgres-data:
+  redis-data:
+  models-store:
