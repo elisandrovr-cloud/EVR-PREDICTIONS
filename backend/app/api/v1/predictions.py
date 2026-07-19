@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.api.deps import DbDep
 from app.api.schemas import PredictionOut
+from app.application.seed import ensure_today_seeded
 from app.domain.entities import Market
 from app.infrastructure.db.models import Prediction
 
@@ -31,6 +32,8 @@ TOP_MARKET_MAP: dict[str, tuple[list[str], int]] = {
 @router.get("/daily", response_model=list[PredictionOut])
 def daily(db: DbDep, day: date | None = None, market: str | None = None,
           limit: int = Query(200, le=1000)) -> list[PredictionOut]:
+    if day is None or day == date.today():
+        ensure_today_seeded(db)  # serverless: populate on first request when empty
     q = select(Prediction).where(Prediction.game_date == (day or date.today()))
     if market:
         q = q.where(Prediction.market == market)
@@ -40,6 +43,8 @@ def daily(db: DbDep, day: date | None = None, market: str | None = None,
 
 @router.get("/top/{board}", response_model=list[PredictionOut])
 def top_board(board: str, db: DbDep, day: date | None = None) -> list[PredictionOut]:
+    if day is None or day == date.today():
+        ensure_today_seeded(db)  # serverless: populate on first request when empty
     if board == "value-bets":
         rows = db.scalars(
             select(Prediction)

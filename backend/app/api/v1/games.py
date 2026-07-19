@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.api.deps import DbDep
 from app.api.schemas import GameOut, OddsQuoteOut, TeamOut
+from app.application.seed import ensure_today_seeded
 from app.infrastructure.cache.redis_client import cache_get, cache_set
 from app.infrastructure.db.models import Game, OddsQuote, Team
 
@@ -27,6 +28,7 @@ def _with_team_names(db: DbDep, games: list[Game]) -> list[GameOut]:
 
 @router.get("/today", response_model=list[GameOut])
 def today(db: DbDep) -> list[GameOut]:
+    ensure_today_seeded(db)  # serverless: populate on first request when empty
     games = db.scalars(
         select(Game).where(Game.game_date == date.today()).order_by(Game.start_time)
     ).all()

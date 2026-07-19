@@ -91,6 +91,28 @@ Primer arranque: `curl -H "Authorization: Bearer $CRON_SECRET" https://TU-APP.ve
   a la `vercel.json` raíz (mismos paths); el ruteo a backend lo resuelven los
   `rewrites` de nivel superior.
 
+## Si la app aparece vacía (sin juegos ni predicciones)
+
+En serverless no hay worker que llene la base, así que hay dos requisitos y un
+diagnóstico:
+
+1. **`DATABASE_URL` debe apuntar a un Postgres gestionado.** SQLite no persiste
+   entre invocaciones serverless; sin una base real, cada request arranca vacío.
+2. **Auto-seed** (activado por defecto, `AUTO_SEED=true`): la primera vez que el
+   frontend pide `/games/today` o `/predictions/daily`, si la base está vacía el
+   backend trae la cartelera del día y genera las predicciones de juego en esa
+   misma petición. No hace falta cron ni trigger manual para ver datos.
+3. **Diagnóstico:** abre `https://TU-APP.vercel.app/api/v1/health`. Devuelve:
+   - `database.connected` — si es `false`, falta o está mal `DATABASE_URL`.
+   - `database.games_today` / `predictions_today` — cuántos datos hay.
+   - `config.cron_enabled` / `odds_enabled` / `weather_enabled` — qué integraciones están activas.
+   - `hint` — el siguiente paso concreto según lo que falte.
+
+> El auto-seed genera predicciones **a nivel de juego** (moneyline, run line,
+> over/under, primera entrada) usando promedios de liga si aún no hay stats. Los
+> props de jugador y las stats reales los rellena el cron `stats`/`refresh` (o
+> `refresh_slate_stats` en el contenedor) en cuanto corre.
+
 ## Recomendación
 
 Vercel es ideal para el **frontend + API de lectura y cron**. Para el pipeline

@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.api.deps import DbDep
 from app.api.schemas import ParlayOut
+from app.application.seed import ensure_today_seeded
 from app.domain.entities import ParlayProfile
 from app.infrastructure.db.models import Parlay
 
@@ -17,6 +18,8 @@ router = APIRouter(prefix="/parlays", tags=["parlays"])
 
 @router.get("/daily", response_model=list[ParlayOut])
 def daily(db: DbDep, day: date | None = None) -> list[ParlayOut]:
+    if day is None or day == date.today():
+        ensure_today_seeded(db)  # serverless: populate on first request when empty
     rows = db.scalars(select(Parlay).where(Parlay.game_date == (day or date.today()))).all()
     return [ParlayOut.model_validate(r) for r in rows]
 

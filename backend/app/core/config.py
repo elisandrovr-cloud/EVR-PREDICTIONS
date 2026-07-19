@@ -49,6 +49,10 @@ class Settings(BaseSettings):
 
     # Engine
     DATA_REFRESH_SECONDS: int = 120
+    # Serverless self-seeding: when the DB is empty, read requests populate today's
+    # slate on demand (no always-on worker needed). Disable on the container host
+    # where Celery keeps data fresh.
+    AUTO_SEED: bool = True
     MONTE_CARLO_ITERATIONS: int = 10_000
     MODELS_STORE_DIR: str = "models_store"
     MIN_EDGE_FOR_VALUE_BET: float = 0.03
