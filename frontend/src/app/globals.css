@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-terminal-bg text-terminal-text antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: theme("colors.terminal.bg");
+}
+::-webkit-scrollbar-thumb {
+  background: theme("colors.terminal.border");
+  border-radius: 4px;
+}

@@ -31,7 +31,9 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
-    env_file: [.env]
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-evr}:${POSTGRES_PASSWORD:-evr_secret_change_me}@postgres:5432/${POSTGRES_DB:-evr_mlb}
       REDIS_URL: redis://redis:6379/0
@@ -54,7 +56,9 @@ services:
     build: ./backend
     restart: unless-stopped
     command: celery -A app.workers.celery_app worker --loglevel=INFO --concurrency=4
-    env_file: [.env]
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-evr}:${POSTGRES_PASSWORD:-evr_secret_change_me}@postgres:5432/${POSTGRES_DB:-evr_mlb}
       REDIS_URL: redis://redis:6379/0
@@ -70,7 +74,9 @@ services:
     build: ./backend
     restart: unless-stopped
     command: celery -A app.workers.celery_app beat --loglevel=INFO
-    env_file: [.env]
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-evr}:${POSTGRES_PASSWORD:-evr_secret_change_me}@postgres:5432/${POSTGRES_DB:-evr_mlb}
       REDIS_URL: redis://redis:6379/0
