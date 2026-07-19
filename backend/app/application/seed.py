@@ -72,7 +72,9 @@ def ensure_today_seeded(db: Session, registry: ProviderRegistry | None = None) -
             summary["seeded"] = True
 
         # Phase 2: progressive stat backfill → props, hits board, hits/K parlays.
-        if settings.AUTO_SEED_STATS:
+        # Skip on the request that just did the initial seed so the first paint
+        # stays fast (well within a serverless timeout); the next poll picks it up.
+        if settings.AUTO_SEED_STATS and not summary["seeded"]:
             summary["backfilled"] = _maybe_backfill(db, reg, today)
         return summary
     except Exception as exc:  # noqa: BLE001 — seeding must never break a read
@@ -108,17 +110,20 @@ def _advance_backfill(db: Session, reg: ProviderRegistry, today: date) -> int:
     have_pen = {r.team_mlb_id for r in db.scalars(select(BullpenStat))}
 
     pitchers: list[int] = []
-    batters: list[int] = []
+    batters: list[tuple[int, str | None, int | None]] = []
     teams: list[int] = []
+    seen_bat: set[int] = set()
     for g in games:
         for pid in (g.home_pitcher_mlb_id, g.away_pitcher_mlb_id):
             if pid and pid not in have_pitch and pid not in pitchers:
                 pitchers.append(pid)
         for side in ("home", "away"):
+            team_id = g.home_team_mlb_id if side == "home" else g.away_team_mlb_id
             for slot in (g.lineups or {}).get(side, []):
                 bid = slot.get("id")
-                if bid and bid not in have_bat and bid not in batters:
-                    batters.append(bid)
+                if bid and bid not in have_bat and bid not in seen_bat:
+                    batters.append((bid, slot.get("name"), team_id))
+                    seen_bat.add(bid)
         for tid in (g.home_team_mlb_id, g.away_team_mlb_id):
             if tid and (tid not in have_team or tid not in have_pen) and tid not in teams:
                 teams.append(tid)
@@ -148,12 +153,14 @@ def _advance_backfill(db: Session, reg: ProviderRegistry, today: date) -> int:
             processed += 1
         except Exception:  # noqa: BLE001
             logger.warning("pitcher backfill failed", extra={"player": pid})
-    for bid in batters:
+    for bid, name, team_id in batters:
         if over_budget():
             break
         try:
             ingestion.sync_batter_stats(db, bid, reg)
             ingestion.sync_batter_recent_form(db, bid, reg)
+            ingestion._upsert_player(db, bid, name, team_id, None)  # store the batter's name
+            db.commit()
             processed += 1
         except Exception:  # noqa: BLE001
             logger.warning("batter backfill failed", extra={"player": bid})
@@ -188,6 +195,7 @@ def _regenerate_ready_games(db: Session, today: date) -> None:
         if not _has_props(db, g.game_pk) and _game_ready_for_props(db, g):
             generate_for_day(db, today, only_game_pk=g.game_pk)
             changed = True
+            break  # one game per request keeps each call within a serverless timeout
     if changed:
         build_parlays_for_day(db, today)
         build_agent_parlays(db, today)

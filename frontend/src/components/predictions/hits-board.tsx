@@ -15,10 +15,16 @@ export function HitsBoard() {
   if (board.isLoading) return <PanelSkeleton rows={8} />;
   if (!board.data || board.data.length === 0) {
     return (
-      <p className="p-8 text-center text-xs text-terminal-muted">
-        Aún no hay props de hits. Se generan cuando el cron de stats sincroniza los lineups del día
-        (o al abrir la app con la base ya poblada).
-      </p>
+      <div className="flex flex-col items-center gap-2 p-8 text-center">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-terminal-accent opacity-60" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-terminal-accent" />
+        </span>
+        <p className="text-xs text-terminal-muted">
+          Sincronizando bateadores del día… El tablero se llena solo en ~1–2 minutos conforme llegan
+          los lineups y las estadísticas. Esta vista se actualiza sola cada minuto.
+        </p>
+      </div>
     );
   }
 

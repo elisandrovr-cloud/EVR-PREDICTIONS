@@ -124,13 +124,12 @@ def sync_schedule(db: Session, day: date, registry: ProviderRegistry | None = No
             if (off.get("officialType") == "Home Plate") and off.get("official"):
                 row.umpire = {"name": off["official"].get("fullName")}
 
-        # Upsert player identities (names) from lineups + probable pitchers.
-        for side, team_key in (("home", home), ("away", away)):
-            team_id = (team_key.get("team") or {}).get("id")
-            for slot in lineups.get(side, []):
-                _upsert_player(db, slot.get("id"), slot.get("name"), team_id, slot.get("position"))
+        # Upsert only the two probable pitchers per game here (cheap). Batter
+        # identities are upserted during the progressive backfill, alongside their
+        # stats, to keep this schedule sync fast enough for a serverless timeout.
+        for team_key in (home, away):
             pp = team_key.get("probablePitcher") or {}
-            _upsert_player(db, pp.get("id"), pp.get("fullName"), team_id, "P")
+            _upsert_player(db, pp.get("id"), pp.get("fullName"), (team_key.get("team") or {}).get("id"), "P")
         stats["games"] += 1
     db.commit()
     return stats

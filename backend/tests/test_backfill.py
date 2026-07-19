@@ -85,14 +85,21 @@ class FakeRegistry:
         return []
 
 
+def _seed_then_backfill(db, reg, passes: int = 3) -> None:
+    """First call does the light seed only; later calls run the backfill. Reset
+    the per-process throttle between calls to simulate successive page polls."""
+    for _ in range(passes):
+        seed._last_backfill = 0.0
+        seed.ensure_today_seeded(db, registry=reg)
+
+
 class TestBackfill:
     def test_props_and_hits_board_fill_in(self, db, monkeypatch) -> None:
         monkeypatch.setattr(seed.settings, "SEED_BACKFILL_MIN_INTERVAL", 0.0)
-        seed._last_backfill = 0.0
         reg = FakeRegistry()
 
-        # First pass: light seed + a backfill batch + regeneration of the ready game.
-        seed.ensure_today_seeded(db, registry=reg)
+        # Light seed first, then backfill passes fill the props + hits board.
+        _seed_then_backfill(db, reg)
 
         # batter + pitcher stats got synced
         assert db.scalar(select(func.count(PlayerStat.id)).where(PlayerStat.kind == "batting")) >= 6
@@ -111,11 +118,14 @@ class TestBackfill:
 
     def test_hits_board_endpoint_populated(self, client, db, monkeypatch) -> None:
         monkeypatch.setattr(seed.settings, "SEED_BACKFILL_MIN_INTERVAL", 0.0)
-        seed._last_backfill = 0.0
         # patch the registry the endpoint's seed will use
         monkeypatch.setattr(seed, "get_registry", lambda: FakeRegistry())
 
-        board = client.get("/api/v1/predictions/hits-board").json()
+        # first call seeds; subsequent calls run the backfill (reset throttle each time)
+        board = []
+        for _ in range(4):
+            seed._last_backfill = 0.0
+            board = client.get("/api/v1/predictions/hits-board").json()
         assert len(board) >= 6
         probs = [r["probability"] for r in board]
         assert probs == sorted(probs, reverse=True)
@@ -125,10 +135,12 @@ class TestBackfill:
 
     def test_strikeout_and_hits_agent_parlays_appear(self, client, db, monkeypatch) -> None:
         monkeypatch.setattr(seed.settings, "SEED_BACKFILL_MIN_INTERVAL", 0.0)
-        seed._last_backfill = 0.0
         monkeypatch.setattr(seed, "get_registry", lambda: FakeRegistry())
 
-        agents = client.get("/api/v1/parlays/agents").json()
+        agents = []
+        for _ in range(4):
+            seed._last_backfill = 0.0
+            agents = client.get("/api/v1/parlays/agents").json()
         categories = {a["category"] for a in agents}
         # with props now present, hits and strikeouts categories should be built
         assert "hits" in categories

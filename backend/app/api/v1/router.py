@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from app.api.deps import DbDep
 from app.api.v1 import admin, auth, bankroll, cron, games, parlays, players, predictions, stats
 from app.core.config import settings
-from app.infrastructure.db.models import Game, Prediction, Team
+from app.infrastructure.db.models import Game, PlayerStat, Prediction, Team
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -35,12 +35,29 @@ def health(db: DbDep) -> dict[str, Any]:
         from app.infrastructure.db.session import ensure_schema
 
         ensure_schema()  # serverless: create tables if the lifespan didn't run
+        hit_props = int(
+            db.scalar(
+                select(func.count(Prediction.id)).where(
+                    Prediction.game_date == today, Prediction.market == "player_hits"
+                )
+            )
+            or 0
+        )
         info["database"] = {
             "connected": True,
             "teams": int(db.scalar(select(func.count(Team.id))) or 0),
             "games_today": int(db.scalar(select(func.count(Game.id)).where(Game.game_date == today)) or 0),
             "predictions_today": int(
                 db.scalar(select(func.count(Prediction.id)).where(Prediction.game_date == today)) or 0
+            ),
+            "hit_props_today": hit_props,
+            "batters_with_stats": int(
+                db.scalar(
+                    select(func.count(PlayerStat.id)).where(
+                        PlayerStat.kind == "batting", PlayerStat.scope == "season"
+                    )
+                )
+                or 0
             ),
         }
     except Exception as exc:  # noqa: BLE001 — report DB failure instead of 500

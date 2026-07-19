@@ -77,8 +77,8 @@ class Settings(BaseSettings):
     # of player/team stats (for props, the hits board and agent parlays) so the
     # slate fills itself over a few page loads without hitting a serverless timeout.
     AUTO_SEED_STATS: bool = True
-    SEED_BACKFILL_MAX_ITEMS: int = 30
-    SEED_BACKFILL_SECONDS: float = 6.0
+    SEED_BACKFILL_MAX_ITEMS: int = 24
+    SEED_BACKFILL_SECONDS: float = 4.0
     SEED_BACKFILL_MIN_INTERVAL: float = 8.0
     MONTE_CARLO_ITERATIONS: int = 10_000
     MODELS_STORE_DIR: str = "models_store"
