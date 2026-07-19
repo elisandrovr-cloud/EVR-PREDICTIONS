@@ -32,6 +32,9 @@ def health(db: DbDep) -> dict[str, Any]:
     today = date.today()
     info: dict[str, Any] = {"status": "ok", "service": "evr-mlb-ai-pro", "date": str(today)}
     try:
+        from app.infrastructure.db.session import ensure_schema
+
+        ensure_schema()  # serverless: create tables if the lifespan didn't run
         info["database"] = {
             "connected": True,
             "teams": int(db.scalar(select(func.count(Team.id))) or 0),

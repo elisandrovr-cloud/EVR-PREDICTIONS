@@ -46,6 +46,10 @@ def ensure_today_seeded(db: Session, registry: ProviderRegistry | None = None) -
     today = date.today()
     summary: dict[str, Any] = {"seeded": False}
     try:
+        # On serverless the ASGI lifespan may not run, so guarantee the schema.
+        from app.infrastructure.db.session import ensure_schema
+
+        ensure_schema()
         if _count(db, Team) == 0:
             summary["teams"] = ingestion.sync_teams(db, reg)
         if _count(db, Game, Game.game_date == today) == 0:

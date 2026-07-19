@@ -91,6 +91,21 @@ Primer arranque: `curl -H "Authorization: Bearer $CRON_SECRET" https://TU-APP.ve
   a la `vercel.json` raíz (mismos paths); el ruteo a backend lo resuelven los
   `rewrites` de nivel superior.
 
+## Conectar una base Neon (paso a paso)
+
+1. Crea la base: `npx neonctl@latest init` (o el dashboard de Neon), login con
+   GitHub, y copia la **connection string** que te da (empieza por
+   `postgresql://…` y termina en `?sslmode=require`).
+   - Alternativa sin salir de Vercel: **Vercel → Storage → Create → Neon**; la
+     integración inyecta `DATABASE_URL`/`POSTGRES_URL` sola.
+2. En **Vercel → Settings → Environment Variables** añade:
+   - `DATABASE_URL` = la string de Neon **tal cual** (el backend la normaliza a
+     `postgresql+psycopg2://…` automáticamente; también acepta `POSTGRES_URL`).
+   - `SECRET_KEY` = cadena aleatoria larga.
+   - `CRON_SECRET` = otra cadena aleatoria (para el cron de actualización).
+3. **Redeploy.** Las tablas se crean solas en el primer request (no necesitas
+   correr migraciones), y al abrir la app el auto-seed carga la cartelera del día.
+
 ## Si la app aparece vacía (sin juegos ni predicciones)
 
 En serverless no hay worker que llene la base, así que hay dos requisitos y un

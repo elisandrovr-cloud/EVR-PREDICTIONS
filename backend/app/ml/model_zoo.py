@@ -152,22 +152,27 @@ class MarketModelBundle:
 
     # ── persistence ─────────────────────────────────────────────────────────
     def _path(self) -> Path:
-        store = Path(settings.MODELS_STORE_DIR)
-        store.mkdir(parents=True, exist_ok=True)
-        return store / f"bundle_{self.market_family}.joblib"
+        # Pure path computation — no filesystem writes, so load() is safe on a
+        # read-only filesystem (e.g. serverless).
+        return Path(settings.MODELS_STORE_DIR) / f"bundle_{self.market_family}.joblib"
 
     def save(self) -> None:
-        joblib.dump(
-            {
-                "scaler": self.scaler,
-                "estimators": self.estimators,
-                "meta": self.meta,
-                "feature_names": self.feature_names,
-                "trained": self.trained,
-                "train_samples": self.train_samples,
-            },
-            self._path(),
-        )
+        try:
+            Path(settings.MODELS_STORE_DIR).mkdir(parents=True, exist_ok=True)
+            joblib.dump(
+                {
+                    "scaler": self.scaler,
+                    "estimators": self.estimators,
+                    "meta": self.meta,
+                    "feature_names": self.feature_names,
+                    "trained": self.trained,
+                    "train_samples": self.train_samples,
+                },
+                self._path(),
+            )
+        except OSError:  # read-only FS (serverless) — models stay in-memory for this process
+            logger.warning("could not persist model bundle (read-only filesystem?)",
+                           extra={"market": self.market_family})
 
     def load(self) -> bool:
         path = self._path()

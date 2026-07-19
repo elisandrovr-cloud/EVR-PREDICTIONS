@@ -3,8 +3,25 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEFAULT_DB_URL = "postgresql+psycopg2://evr:evr_secret_change_me@localhost:5432/evr_mlb"
+
+
+def to_sqlalchemy_url(url: str) -> str:
+    """Accept the connection strings Neon / Vercel Postgres / Supabase hand out
+    (``postgres://…`` or ``postgresql://…``, often with ``?sslmode=require``) and
+    return the psycopg2-qualified form SQLAlchemy needs. Idempotent."""
+    if not url:
+        return url
+    if url.startswith("postgresql+"):  # already qualified (e.g. +psycopg2)
+        return url
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg2://" + url[len("postgresql://"):]
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg2://" + url[len("postgres://"):]
+    return url
 
 
 class Settings(BaseSettings):
@@ -17,7 +34,10 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # Database / cache
-    DATABASE_URL: str = "postgresql+psycopg2://evr:evr_secret_change_me@localhost:5432/evr_mlb"
+    DATABASE_URL: str = _DEFAULT_DB_URL
+    # Vercel's Neon/Postgres integration injects POSTGRES_URL; used as a fallback
+    # when DATABASE_URL was not set explicitly.
+    POSTGRES_URL: str = ""
     REDIS_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
@@ -64,6 +84,19 @@ class Settings(BaseSettings):
         if isinstance(v, str) and not v.startswith("["):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
+
+    @field_validator("DATABASE_URL", "POSTGRES_URL", mode="before")
+    @classmethod
+    def _normalize_db_url(cls, v: object) -> object:
+        return to_sqlalchemy_url(v) if isinstance(v, str) else v
+
+    @model_validator(mode="after")
+    def _fallback_to_postgres_url(self) -> "Settings":
+        # If DATABASE_URL wasn't set (still the localhost default) but the platform
+        # injected POSTGRES_URL (Vercel + Neon), use that instead.
+        if self.DATABASE_URL == _DEFAULT_DB_URL and self.POSTGRES_URL:
+            object.__setattr__(self, "DATABASE_URL", self.POSTGRES_URL)
+        return self
 
 
 @lru_cache
