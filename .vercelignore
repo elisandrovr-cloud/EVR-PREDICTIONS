@@ -1,0 +1,14 @@
+.git
+.github
+docs
+nginx
+Makefile
+docker-compose.yml
+README.md
+backend/tests
+backend/models_store
+backend/alembic
+**/__pycache__
+**/*.pyc
+frontend/.next
+frontend/node_modules

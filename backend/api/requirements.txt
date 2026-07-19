@@ -1,0 +1,3 @@
+# Vercel's Python builder installs the requirements file next to the entrypoint.
+# Reuse the canonical backend dependency set (resolved from the repo checkout).
+-r ../requirements.txt

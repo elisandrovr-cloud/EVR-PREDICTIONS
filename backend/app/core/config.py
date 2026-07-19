@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     RATE_LIMIT_PER_MINUTE: int = 120
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost", "http://localhost:3000"]
+    # Shared secret Vercel Cron (or any scheduler) must send as `Authorization:
+    # Bearer <CRON_SECRET>` to trigger the /cron/* jobs. Empty ⇒ endpoint disabled.
+    CRON_SECRET: str = ""
 
     # OAuth
     GOOGLE_CLIENT_ID: str = ""

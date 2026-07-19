@@ -152,3 +152,24 @@ class TestAdmin:
         db.commit()
         assert client.get("/api/v1/admin/users", headers=headers).status_code == 200
         assert client.get("/api/v1/admin/overview", headers=headers).status_code == 200
+
+
+class TestCron:
+    def test_disabled_without_secret(self, client) -> None:
+        # Default config has no CRON_SECRET → endpoint is disabled.
+        assert client.get("/api/v1/cron/refresh").status_code == 503
+
+    def test_rejects_bad_secret(self, client, monkeypatch) -> None:
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "CRON_SECRET", "s3cret")
+        resp = client.get("/api/v1/cron/refresh", headers={"Authorization": "Bearer wrong"})
+        assert resp.status_code == 401
+
+    def test_unknown_job_with_valid_secret(self, client, monkeypatch) -> None:
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "CRON_SECRET", "s3cret")
+        # 404 (unknown job) is resolved before the job runs — no network/DB work.
+        resp = client.get("/api/v1/cron/nonsense", headers={"Authorization": "Bearer s3cret"})
+        assert resp.status_code == 404
