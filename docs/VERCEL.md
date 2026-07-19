@@ -1,65 +1,100 @@
-# Despliegue en Vercel (frontend + backend en un solo proyecto)
+# Despliegue en Vercel (proyecto multi-service)
 
-`vercel.json` en la raíz declara **dos servicios** en un mismo despliegue:
+Vercel reconoce el monorepo como **proyecto con múltiples servicios** mediante el
+bloque `services` de `vercel.json` (raíz). Este es el formato que activa la
+opción de deploy en el dashboard; el formato legacy `builds`/`routes` **no** la
+activa.
 
-- **Frontend** — la app Next.js en `frontend/` (`@vercel/next`).
-- **Backend** — la API FastAPI expuesta como función serverless Python
-  (`@vercel/python`) desde `backend/api/index.py`, que reexporta la app ASGI.
+## Estructura
 
-Las `routes` enrutan `/api/*`, `/docs`, `/redoc` y `/openapi.json` a la función
-Python; todo lo demás va al frontend. Al ser el mismo origen, el frontend sigue
-usando `NEXT_PUBLIC_API_URL=/api/v1` sin CORS.
+**`vercel.json` (raíz)** declara dos servicios y el enrutado entre ellos:
+
+```json
+{
+  "services": {
+    "frontend": { "root": "frontend", "framework": "nextjs" },
+    "backend":  { "root": "backend" }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)",     "destination": { "type": "service", "service": "backend" } },
+    { "source": "/docs(.*)",     "destination": { "type": "service", "service": "backend" } },
+    { "source": "/redoc(.*)",    "destination": { "type": "service", "service": "backend" } },
+    { "source": "/openapi.json", "destination": { "type": "service", "service": "backend" } },
+    { "source": "/(.*)",         "destination": { "type": "service", "service": "frontend" } }
+  ]
+}
+```
+
+- `frontend` (root `frontend/`, framework Next.js) recibe todo lo que no es API.
+- `backend` (root `backend/`) recibe `/api/*`, `/docs`, `/redoc`, `/openapi.json`.
+  Vercel lo detecta como funciones serverless Python por `backend/api/index.py`
+  (que reexporta la app FastAPI) + `backend/api/requirements.txt`.
+
+> **Por qué `/api/(.*)` y no `/api/backend`:** el frontend llama a
+> `NEXT_PUBLIC_API_URL=/api/v1`, así que todo `/api/*` debe ir al backend. El
+> prefijo `/api/backend` de la plantilla no coincidía con esas llamadas.
+
+**`backend/vercel.json`** enruta internamente todas las rutas del servicio a la
+única función ASGI, para que FastAPI haga su propio ruteo (`/api/v1/...`, `/docs`)
+y agenda los cron:
+
+```json
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
+  "crons": [ … ]
+}
+```
+
+## Dependencias serverless más ligeras
+
+`backend/api/requirements.txt` (adyacente a la función, tiene prioridad en Vercel)
+**omite XGBoost, LightGBM, CatBoost y pandas** para caber en el límite de 250 MB
+de una función serverless. El zoo de modelos ya cae a `GradientBoosting` de
+scikit-learn cuando esas librerías faltan (`app/ml/model_zoo.py`), así que se
+siguen produciendo los 8 votos del ensemble — con implementaciones sklearn.
+El Docker sigue usando el `backend/requirements.txt` completo (con los boosters).
 
 ## Variables de entorno (Project → Settings → Environment Variables)
 
-Vercel no ejecuta Postgres, Redis ni procesos de larga duración: usa servicios
-gestionados.
-
 | Variable | Valor |
 |---|---|
-| `DATABASE_URL` | Postgres gestionado (Neon, Supabase, RDS). `postgresql+psycopg2://…` |
+| `DATABASE_URL` | Postgres gestionado (Neon, Supabase, RDS) `postgresql+psycopg2://…` |
 | `REDIS_URL` | Redis gestionado (Upstash). Opcional: sin él, rate-limit y caché degradan a no-op |
 | `SECRET_KEY` | 64 hex aleatorios |
-| `CRON_SECRET` | Secreto para los cron jobs. **Vercel lo inyecta** como `Authorization: Bearer <CRON_SECRET>` |
+| `CRON_SECRET` | Secreto de cron. **Vercel lo inyecta** como `Authorization: Bearer <CRON_SECRET>` |
 | `MODELS_STORE_DIR` | `/tmp/models` (único directorio escribible en serverless) |
-| `ODDS_API_KEY`, `OPENWEATHER_API_KEY` | Opcionales, activan cuotas y clima |
-| `NEXT_PUBLIC_API_URL` | `/api/v1` |
+| `ODDS_API_KEY`, `OPENWEATHER_API_KEY` | Opcionales (cuotas y clima) |
+| `NEXT_PUBLIC_API_URL` | `/api/v1` (en el servicio frontend) |
 
-## Cron: reemplaza a Celery beat
+## Cron (reemplaza a Celery beat)
 
-El bloque `crons` de `vercel.json` sustituye el `beat` del contenedor. Cada
-entrada hace un GET al endpoint protegido `/api/v1/cron/{job}`:
+Definido en `backend/vercel.json`. Cada entrada hace un GET a
+`/api/v1/cron/{job}`, protegido por `CRON_SECRET`, ejecutado de forma síncrona
+por `app/application/cron_runner.py` (sin broker):
 
-| Path | Schedule | Equivalente |
+| Path | Schedule | Job |
 |---|---|---|
-| `/api/v1/cron/refresh` | `*/2 * * * *` | tick de 2 min (schedule + odds + clima + predicciones + parlays) |
+| `/api/v1/cron/refresh` | `*/2 * * * *` | schedule + odds + clima + predicciones + parlays |
 | `/api/v1/cron/stats` | `*/30 * * * *` | stats del slate |
 | `/api/v1/cron/bootstrap` | `0 6 * * *` | equipos + cartelera |
 | `/api/v1/cron/close-day` | `30 8 * * *` | cierre nocturno con aprendizaje |
 
-`cron_runner.py` ejecuta cada job de forma **síncrona** (sin broker), así que no
-hace falta un worker. La primera vez, dispara `bootstrap` manualmente:
-`curl -H "Authorization: Bearer $CRON_SECRET" https://TU-APP.vercel.app/api/v1/cron/bootstrap`.
+Primer arranque: `curl -H "Authorization: Bearer $CRON_SECRET" https://TU-APP.vercel.app/api/v1/cron/bootstrap`.
 
-## Límites reales que debes conocer
+## Límites a tener en cuenta
 
-- **Frecuencia de cron**: `*/2` (cada 2 min) requiere plan **Pro**; en Hobby el
+- **Frecuencia de cron:** `*/2` (cada 2 min) requiere plan **Pro**; en Hobby el
   mínimo es diario. Ajusta el schedule según tu plan.
-- **Timeout de función**: 10 s (Hobby) / 60 s (Pro) / hasta 300 s configurable.
-  Un `refresh` sobre una cartelera completa puede acercarse al límite; si lo
-  supera, reduce el alcance por tick o usa el path de contenedor para el motor.
-- **Tamaño de la función (250 MB)**: el motor ML carga `scikit-learn`, `numpy`,
-  `pandas` y opcionalmente XGBoost/LightGBM/CatBoost. Con las cuatro librerías de
-  boosting el paquete puede exceder el límite. Opciones: (a) confiar en los
-  fallbacks de `scikit-learn` que ya trae el zoo y omitir XGBoost/LightGBM/
-  CatBoost del `requirements`, o (b) mantener el **motor pesado en un host de
-  contenedores** (ver `docs/DEPLOYMENT.md`) y usar Vercel solo para el frontend
-  + API ligera, apuntando `DATABASE_URL` a la misma base.
+- **Timeout de función:** 10 s (Hobby) / 60 s (Pro) / hasta 300 s configurable.
+  Un `refresh` de una cartelera completa puede acercarse al límite.
+- **Si el dashboard rechaza `crons` junto a `services`:** mueve el bloque `crons`
+  a la `vercel.json` raíz (mismos paths); el ruteo a backend lo resuelven los
+  `rewrites` de nivel superior.
 
 ## Recomendación
 
-Vercel es ideal para el **frontend** y una **API de lectura**. Para el pipeline
-de entrenamiento continuo (workers siempre activos, reentrenamiento nocturno con
-las librerías completas) el despliegue en contenedores de `docs/DEPLOYMENT.md`
-sigue siendo el camino de producción del motor completo; ambos pueden compartir
-la misma Postgres/Redis gestionada.
+Vercel es ideal para el **frontend + API de lectura y cron**. Para el pipeline
+de entrenamiento continuo con las librerías de boosting completas y workers
+siempre activos, el despliegue en contenedores de `docs/DEPLOYMENT.md` sigue
+siendo el camino de producción del motor completo; ambos pueden compartir la
+misma Postgres/Redis gestionada.

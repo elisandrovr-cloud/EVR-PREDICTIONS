@@ -1,3 +1,26 @@
-# Vercel's Python builder installs the requirements file next to the entrypoint.
-# Reuse the canonical backend dependency set (resolved from the repo checkout).
--r ../requirements.txt
+# Dependencies for the Vercel serverless function (installed from the file next
+# to the entrypoint). Deliberately SLIMMER than backend/requirements.txt to stay
+# under Vercel's 250 MB function limit: XGBoost / LightGBM / CatBoost and pandas
+# are omitted. The model zoo already falls back to scikit-learn's
+# GradientBoosting when those libraries are absent (see app/ml/model_zoo.py), so
+# every model vote is still produced — just with sklearn implementations.
+# The full set (with the boosting libraries) is used by the Docker deployment.
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.4
+pydantic-settings==2.7.0
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.10
+redis==5.2.1
+celery==5.4.0
+httpx==0.28.1
+PyJWT==2.10.1
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-multipart==0.0.20
+email-validator==2.2.0
+numpy==1.26.4
+scikit-learn==1.5.2
+joblib==1.4.2
+tenacity==9.0.0
+python-json-logger==3.2.1
