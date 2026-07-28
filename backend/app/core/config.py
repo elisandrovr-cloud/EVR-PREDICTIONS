@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_SECRET: str = ""
     OAUTH_REDIRECT_BASE: str = "http://localhost/api/v1/auth/oauth"
 
+    # Sportsbook feed (optional, for an authorized/licensed line provider).
+    # Hard Rock Bet has no public API: lines come from manual entry by default.
+    SPORTSBOOK_FEED_URL: str = ""
+    SPORTSBOOK_FEED_KEY: str = ""
+    DEFAULT_BOOK_NAME: str = "Hard Rock Bet"
+
     # External providers
     ODDS_API_KEY: str = ""
     OPENWEATHER_API_KEY: str = ""
@@ -80,6 +86,9 @@ class Settings(BaseSettings):
     SEED_BACKFILL_MAX_ITEMS: int = 24
     SEED_BACKFILL_SECONDS: float = 4.0
     SEED_BACKFILL_MIN_INTERVAL: float = 8.0
+    # Multi-agent monitoring cycle
+    AGENT_CYCLE_SECONDS: float = 5.0  # per-agent wall-clock budget inside one cycle
+    AGENT_MONITOR_INTERVAL: int = 60  # how often the full cycle runs (seconds)
     MONTE_CARLO_ITERATIONS: int = 10_000
     MODELS_STORE_DIR: str = "models_store"
     MIN_EDGE_FOR_VALUE_BET: float = 0.03

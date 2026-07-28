@@ -34,6 +34,11 @@ celery_app.conf.update(
 )
 
 celery_app.conf.beat_schedule = {
+    # The multi-agent heartbeat: rosters, lineups, players, prices and news.
+    "agent-cycle-every-minute": {
+        "task": "app.workers.tasks.run_agent_cycle",
+        "schedule": float(settings.AGENT_MONITOR_INTERVAL),
+    },
     "refresh-data-every-2-min": {
         "task": "app.workers.tasks.refresh_all_data",
         "schedule": float(settings.DATA_REFRESH_SECONDS),

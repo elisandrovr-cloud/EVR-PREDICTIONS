@@ -1,18 +1,26 @@
 "use client";
 
-/** Sala de Agentes — expertos en béisbol debaten y compiten por el mejor parlay
- * del día en cada categoría (hits / ponches / juegos / mixto) y estilo (seguro / agresivo). */
+/** Centro de control multi-agente: estado de los 8 agentes, ciclo de monitoreo,
+ * cambios detectados, noticias y las combinadas del comité de parlays. */
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { Crown, Swords } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Bot, Clock, Crown, Newspaper, RefreshCw, Swords } from "lucide-react";
 
 import { Badge, riskBadgeVariant } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PanelSkeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
+import { post } from "@/lib/api";
 import { fmtAmerican, fmtEv, fmtPct, MARKET_LABELS } from "@/lib/format";
-import { useAgentParlays } from "@/lib/queries";
-import type { AgentParlay } from "@/lib/types";
+import {
+  useAgentParlays,
+  useAgentStatus,
+  useChanges,
+  useLastCycle,
+  useNews,
+} from "@/lib/queries";
+import type { AgentParlay, AgentStatus } from "@/lib/types";
 
 const CATEGORIES = [
   { id: "hits", label: "Solo Hits" },
@@ -22,128 +30,241 @@ const CATEGORIES = [
 ];
 
 export default function AgentsPage() {
+  const agents = useAgentStatus();
+  const cycle = useLastCycle();
+  const changes = useChanges(20);
+  const news = useNews(12);
   const parlays = useAgentParlays();
   const [category, setCategory] = useState("hits");
+  const queryClient = useQueryClient();
+
+  const refresh = useMutation({
+    mutationFn: () => post<{ conclusion: string }>("/agents/refresh", {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
+    },
+  });
 
   const byCategory = useMemo(() => {
     const map: Record<string, AgentParlay[]> = {};
     for (const p of parlays.data ?? []) (map[p.category] ??= []).push(p);
-    for (const list of Object.values(map)) list.sort((a, b) => (a.style === "safe" ? -1 : 1));
+    for (const list of Object.values(map)) list.sort((a) => (a.style === "safe" ? -1 : 1));
     return map;
   }, [parlays.data]);
 
-  const current = byCategory[category] ?? [];
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Swords className="h-5 w-5 text-terminal-accent" />
-        <h1 className="font-mono text-sm font-semibold uppercase tracking-widest text-terminal-muted">
-          Sala de Agentes — el debate del día
-        </h1>
-      </div>
-      <p className="max-w-3xl text-xs leading-relaxed text-terminal-muted">
-        Cuatro analistas con filosofías distintas — <b className="text-terminal-text">El Sabio</b> (seguridad),{" "}
-        <b className="text-terminal-text">El Francotirador</b> (valor vs. la casa),{" "}
-        <b className="text-terminal-text">El Apostador</b> (cuota máxima) y{" "}
-        <b className="text-terminal-text">El Analista</b> (convicción del modelo) — analizan los rosters del día y
-        compiten por armar el mejor parlay. El juez elige al ganador por categoría y estilo, y aquí queda el debate.
-      </p>
-
-      <Tabs tabs={CATEGORIES} active={category} onChange={setCategory} />
-
-      {parlays.isLoading ? (
-        <PanelSkeleton rows={6} />
-      ) : current.length === 0 ? (
-        <p className="rounded-md border border-dashed border-terminal-border p-8 text-center text-sm text-terminal-muted">
-          Aún no hay parlay de {CATEGORIES.find((c) => c.id === category)?.label.toLowerCase()} para hoy. Los de hits y
-          ponches requieren que el cron de stats sincronice los lineups; los de juegos aparecen apenas hay cartelera.
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {current.map((p) => (
-            <AgentParlayCard key={p.id} parlay={p} />
-          ))}
+      {/* Encabezado + ACTUALIZAR AHORA */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-terminal-border bg-terminal-panel p-4">
+        <div>
+          <h1 className="flex items-center gap-2 text-lg font-bold text-terminal-text">
+            <Bot className="h-5 w-5 text-terminal-accent" /> Equipo de Agentes IA
+          </h1>
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-terminal-muted">
+            <Clock className="h-3.5 w-3.5" />
+            {cycle.data?.started_at
+              ? `Última actualización: ${new Date(cycle.data.started_at).toLocaleString()}`
+              : "Esperando el primer ciclo de monitoreo…"}
+          </p>
+          {cycle.data?.conclusion && (
+            <p className="mt-1 text-xs text-terminal-text">{cycle.data.conclusion}</p>
+          )}
         </div>
+        <Button onClick={() => refresh.mutate()} disabled={refresh.isPending}>
+          <RefreshCw className={`h-4 w-4 ${refresh.isPending ? "animate-spin" : ""}`} />
+          {refresh.isPending ? "Actualizando…" : "ACTUALIZAR AHORA"}
+        </Button>
+      </div>
+      {refresh.isError && (
+        <p className="text-xs text-terminal-red">{(refresh.error as Error).message}</p>
       )}
+
+      {/* Estado de los 8 agentes */}
+      <section>
+        <h2 className="mb-2 font-mono text-xs font-semibold uppercase tracking-widest text-terminal-muted">
+          Los 8 agentes especializados
+        </h2>
+        {agents.isLoading ? (
+          <PanelSkeleton rows={4} />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+            {(agents.data ?? []).map((a) => (
+              <AgentCard key={a.name} agent={a} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Cambios detectados */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-terminal-amber" /> Cambios detectados
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {changes.isLoading ? (
+              <PanelSkeleton rows={4} />
+            ) : changes.data && changes.data.length > 0 ? (
+              <ul className="max-h-80 overflow-y-auto">
+                {changes.data.map((c) => (
+                  <li key={c.id} className="border-b border-terminal-border/50 px-4 py-2 last:border-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-sm text-terminal-text">{c.detail}</span>
+                      <Badge
+                        variant={
+                          c.severity === "critical" ? "red" : c.severity === "warning" ? "amber" : "outline"
+                        }
+                      >
+                        {c.change_type}
+                      </Badge>
+                    </div>
+                    <div className="mt-0.5 font-mono text-[10px] text-terminal-muted">
+                      {new Date(c.detected_at).toLocaleString()} · {c.detected_by}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="p-6 text-center text-xs text-terminal-muted">
+                Sin movimientos detectados todavía. El monitoreo corre cada minuto.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Noticias */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Newspaper className="h-3.5 w-3.5 text-terminal-accent" /> Noticias y lesiones
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {news.isLoading ? (
+              <PanelSkeleton rows={4} />
+            ) : news.data && news.data.length > 0 ? (
+              <ul className="max-h-80 overflow-y-auto">
+                {news.data.map((n) => (
+                  <li key={n.id} className="border-b border-terminal-border/50 px-4 py-2 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={n.category === "injury" ? "red" : "outline"}>{n.category}</Badge>
+                      <span className="text-sm font-medium text-terminal-text">{n.headline}</span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-terminal-muted">{n.body}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="p-6 text-center text-xs text-terminal-muted">
+                Sin noticias oficiales registradas.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Comité de parlays */}
+      <section>
+        <h2 className="mb-2 flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-widest text-terminal-muted">
+          <Swords className="h-3.5 w-3.5" /> Comité de parlays — el debate del día
+        </h2>
+        <Tabs tabs={CATEGORIES} active={category} onChange={setCategory} />
+        <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {(byCategory[category] ?? []).map((p) => (
+            <ParlayCard key={p.id} parlay={p} />
+          ))}
+          {(byCategory[category] ?? []).length === 0 && (
+            <p className="rounded-md border border-dashed border-terminal-border p-6 text-center text-xs text-terminal-muted lg:col-span-2">
+              Aún no hay combinada de esta categoría. Se arma cuando los agentes tienen datos suficientes.
+            </p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
 
-function AgentParlayCard({ parlay }: { parlay: AgentParlay }) {
+function AgentCard({ agent }: { agent: AgentStatus }) {
+  const tone =
+    agent.status === "ok" ? "green" : agent.status === "error" ? "red" : "outline";
+  return (
+    <div className="rounded-lg border border-terminal-border bg-terminal-panel p-3">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-sm font-semibold text-terminal-text">{agent.title}</span>
+        <Badge variant={tone}>{agent.status}</Badge>
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-terminal-muted">{agent.description}</p>
+      <p className="mt-2 text-xs text-terminal-text">{agent.summary}</p>
+      <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-terminal-muted">
+        <span>{agent.items_processed} procesados</span>
+        {agent.duration_ms != null && <span>{Math.round(agent.duration_ms)} ms</span>}
+      </div>
+    </div>
+  );
+}
+
+function ParlayCard({ parlay }: { parlay: AgentParlay }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {parlay.style === "safe" ? "Seguro" : "Agresivo"}
+        <CardTitle>{parlay.style === "safe" ? "Segura" : "Agresiva"}</CardTitle>
+        <div className="flex items-center gap-2">
           <Badge variant={riskBadgeVariant(parlay.risk)}>{parlay.risk}</Badge>
-        </CardTitle>
-        <div className="flex items-center gap-1.5 font-mono text-[11px] text-terminal-amber">
-          <Crown className="h-3.5 w-3.5" /> {parlay.winning_agent}
+          <Badge variant="amber">
+            <Crown className="mr-1 inline h-3 w-3" />
+            {parlay.winning_agent}
+          </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-3 gap-2 rounded-md bg-terminal-bg p-2.5 text-center font-mono">
-          <Stat label="Acierto" value={fmtPct(parlay.combined_probability)} accent />
-          <Stat label="Cuota" value={`x${parlay.combined_decimal_odds.toFixed(2)}`} />
-          <Stat label="EV" value={fmtEv(parlay.expected_value)} />
+      <CardContent className="space-y-2">
+        <div className="grid grid-cols-3 gap-2 rounded-md bg-terminal-bg p-2 text-center font-mono text-xs">
+          <div>
+            <div className="text-[9px] uppercase text-terminal-muted">Acierto</div>
+            <div className="text-sm font-bold text-terminal-accent">
+              {fmtPct(parlay.combined_probability)}
+            </div>
+          </div>
+          <div>
+            <div className="text-[9px] uppercase text-terminal-muted">Cuota</div>
+            <div className="text-sm font-bold">x{parlay.combined_decimal_odds.toFixed(2)}</div>
+          </div>
+          <div>
+            <div className="text-[9px] uppercase text-terminal-muted">EV</div>
+            <div className="text-sm font-bold">{fmtEv(parlay.expected_value)}</div>
+          </div>
         </div>
-
-        <ol className="space-y-1.5">
+        <ol className="space-y-1">
           {parlay.legs.map((leg, i) => (
-            <li key={i} className="flex items-center justify-between gap-2 rounded border border-terminal-border/60 px-2.5 py-1.5">
-              <span className="truncate text-sm text-terminal-text">{leg.selection}</span>
-              <span className="flex items-center gap-2 font-mono text-[11px] text-terminal-muted">
+            <li key={i} className="flex items-center justify-between gap-2 rounded border border-terminal-border/60 px-2 py-1.5 text-sm">
+              <span className="truncate text-terminal-text">{leg.selection}</span>
+              <span className="flex shrink-0 items-center gap-2 font-mono text-[11px] text-terminal-muted">
                 <Badge variant="outline">{MARKET_LABELS[leg.market] ?? leg.market}</Badge>
                 {fmtPct(leg.probability)} · {fmtAmerican(leg.book_odds ?? leg.fair_odds)}
               </span>
             </li>
           ))}
         </ol>
-
-        <div>
-          <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-terminal-muted">
-            El debate
-          </div>
-          <div className="space-y-1.5">
-            {parlay.debate.map((d, i) => (
-              <motion.div
-                key={d.agent}
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className={`rounded-md border p-2 text-xs ${
-                  d.won
-                    ? "border-terminal-amber/50 bg-terminal-amber/5"
-                    : "border-terminal-border/50 bg-terminal-bg/40"
-                }`}
-              >
-                <div className="mb-0.5 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 font-semibold text-terminal-text">
-                    {d.won && <Crown className="h-3 w-3 text-terminal-amber" />}
-                    {d.agent}
-                    <span className="font-normal text-terminal-muted/70">· {d.tagline}</span>
-                  </span>
-                  <span className="font-mono text-[10px] text-terminal-muted">
-                    score {(d.score * (parlay.style === "safe" ? 100 : 1)).toFixed(parlay.style === "safe" ? 0 : 2)}
-                    {parlay.style === "safe" ? "%" : "x"}
-                  </span>
+        {parlay.debate.length > 0 && (
+          <details className="rounded-md bg-terminal-bg p-2">
+            <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-terminal-muted">
+              Ver el debate ({parlay.debate.length} agentes)
+            </summary>
+            <div className="mt-2 space-y-1.5">
+              {parlay.debate.map((d) => (
+                <div key={d.agent} className={`text-xs ${d.won ? "text-terminal-text" : "text-terminal-muted"}`}>
+                  <span className="font-semibold">
+                    {d.won && "👑 "}
+                    {d.agent}:
+                  </span>{" "}
+                  {d.argument}
                 </div>
-                <p className="leading-relaxed text-terminal-muted">{d.argument}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          </details>
+        )}
       </CardContent>
     </Card>
-  );
-}
-
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div>
-      <div className="text-[9px] uppercase text-terminal-muted">{label}</div>
-      <div className={`text-sm font-bold ${accent ? "text-terminal-accent" : "text-terminal-text"}`}>{value}</div>
-    </div>
   );
 }

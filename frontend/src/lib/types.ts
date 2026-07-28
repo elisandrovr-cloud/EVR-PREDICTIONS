@@ -167,6 +167,120 @@ export interface AgentParlay {
   outcome: string | null;
 }
 
+// ── multi-agent platform ─────────────────────────────────────────────────────
+export interface AgentStatus {
+  name: string;
+  title: string;
+  description: string;
+  status: "ok" | "error" | "skipped" | "idle" | string;
+  summary: string;
+  items_processed: number;
+  changes_detected: number;
+  duration_ms: number | null;
+  last_run: string | null;
+}
+
+export interface AgentCycle {
+  available?: boolean;
+  started_at: string | null;
+  duration_ms: number;
+  changes_detected: number;
+  conclusion: string;
+  agents: unknown[];
+}
+
+export interface RosterChangeItem {
+  id: number;
+  team_mlb_id: number | null;
+  player_mlb_id: number | null;
+  player_name: string | null;
+  change_type: string;
+  detail: string;
+  previous_value: string | null;
+  new_value: string | null;
+  game_pk: number | null;
+  severity: "info" | "warning" | "critical" | string;
+  detected_by: string;
+  detected_at: string;
+}
+
+export interface NewsItem {
+  id: number;
+  player_mlb_id: number | null;
+  team_mlb_id: number | null;
+  headline: string;
+  body: string;
+  category: "news" | "injury" | "transaction" | string;
+  source: string;
+  url: string | null;
+  published_at: string;
+}
+
+export interface ChatInsight {
+  agent: string;
+  title: string;
+  headline: string;
+  bullets: string[];
+  picks: Record<string, unknown>[];
+  confidence: number;
+}
+
+export interface ChatAnswer {
+  question: string;
+  intent: string;
+  answer: string;
+  insights: ChatInsight[];
+  picks: Record<string, unknown>[];
+  confidence: number;
+  agents_consulted: string[];
+  disclaimer: string;
+}
+
+export interface PlayerRow {
+  mlb_id: number;
+  full_name: string;
+  team_mlb_id: number | null;
+  team: string | null;
+  position: string | null;
+  bats: string | null;
+  throws: string | null;
+  is_pitcher: boolean;
+  photo_url: string | null;
+  age: number | null;
+  height: string | null;
+  weight: number | null;
+  jersey_number: string | null;
+  roster_status: string | null;
+}
+
+export interface PlayerListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  items: PlayerRow[];
+}
+
+export interface PlayerProfile {
+  player: PlayerRow;
+  stats: Record<string, number | string | number[]>;
+  splits: Record<string, Record<string, number>>;
+  last5: { date?: string; hits?: number; ab?: number; opponent?: string }[];
+  predictions: {
+    id: number;
+    market: string;
+    selection: string;
+    line: number | null;
+    probability: number;
+    confidence: number;
+    book_odds: number | null;
+    fair_odds: number;
+    is_value_bet: boolean;
+    explanation: string;
+  }[];
+  news: NewsItem[];
+  changes: RosterChangeItem[];
+}
+
 export interface OddsQuote {
   game_pk: number;
   book: string;

@@ -30,9 +30,6 @@ class MlbStatsProvider(BaseProvider):
     def teams(self) -> list[dict[str, Any]]:
         return self._get("/teams", params={"sportId": 1, "activeStatus": "Y"}).get("teams", [])
 
-    def roster(self, team_id: int) -> list[dict[str, Any]]:
-        return self._get(f"/teams/{team_id}/roster", params={"rosterType": "active"}).get("roster", [])
-
     def live_feed(self, game_pk: int) -> dict[str, Any]:
         # v1.1 endpoint lives on the same host, outside the /api/v1 base path
         started = self._client.get(
@@ -67,3 +64,26 @@ class MlbStatsProvider(BaseProvider):
 
     def standings(self) -> dict[str, Any]:
         return self._get("/standings", params={"leagueId": "103,104", "season": date.today().year})
+
+    # ── profile / movement endpoints (used by the monitoring agents) ─────────
+    def people(self, player_ids: list[int]) -> list[dict[str, Any]]:
+        """Full bio for up to ~100 players at once (official /people endpoint)."""
+        if not player_ids:
+            return []
+        ids = ",".join(str(p) for p in player_ids[:100])
+        return self._get("/people", params={"personIds": ids}).get("people", [])
+
+    def roster(self, team_id: int, roster_type: str = "active") -> list[dict[str, Any]]:
+        return self._get(f"/teams/{team_id}/roster", params={"rosterType": roster_type}).get("roster", [])
+
+    def transactions(self, start: date, end: date) -> list[dict[str, Any]]:
+        """Official transaction wire: activations, IL moves, options, releases."""
+        return self._get(
+            "/transactions",
+            params={"startDate": start.isoformat(), "endDate": end.isoformat(), "sportId": 1},
+        ).get("transactions", [])
+
+    @staticmethod
+    def headshot_url(player_id: int) -> str:
+        """Official MLB headshot CDN pattern."""
+        return f"https://midfield.mlbstatic.com/v1/people/{player_id}/spots/120"

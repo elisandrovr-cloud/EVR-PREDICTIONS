@@ -165,6 +165,114 @@ class AgentParlayOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── multi-agent platform ──────────────────────────────────────────────────────
+class AgentStatusOut(BaseModel):
+    name: str
+    title: str
+    description: str
+    status: str
+    summary: str
+    items_processed: int
+    changes_detected: int
+    duration_ms: float | None
+    last_run: str | None
+
+
+class CycleOut(BaseModel):
+    started_at: str
+    duration_ms: float
+    changes_detected: int
+    conclusion: str
+    agents: list[Any]
+
+
+class ChangeOut(BaseModel):
+    id: int
+    team_mlb_id: int | None
+    player_mlb_id: int | None
+    player_name: str | None
+    change_type: str
+    detail: str
+    previous_value: str | None
+    new_value: str | None
+    game_pk: int | None
+    severity: str
+    detected_by: str
+    detected_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NewsOut(BaseModel):
+    id: int
+    player_mlb_id: int | None
+    team_mlb_id: int | None
+    headline: str
+    body: str
+    category: str
+    source: str
+    url: str | None
+    published_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=2, max_length=500)
+    session_key: str = "default"
+
+
+class ChatResponse(BaseModel):
+    question: str
+    intent: str
+    answer: str
+    insights: list[Any]
+    picks: list[Any]
+    confidence: float
+    agents_consulted: list[str]
+    disclaimer: str
+
+
+class PlayerOut(BaseModel):
+    mlb_id: int
+    full_name: str
+    team_mlb_id: int | None
+    team: str | None = None
+    position: str | None
+    bats: str | None
+    throws: str | None
+    is_pitcher: bool
+    photo_url: str | None
+    age: int | None
+    height: str | None
+    weight: int | None
+    jersey_number: str | None
+    roster_status: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class PlayerProfileOut(BaseModel):
+    player: PlayerOut
+    stats: dict[str, Any]
+    splits: dict[str, Any]
+    last5: list[Any]
+    predictions: list[Any]
+    news: list[NewsOut]
+    changes: list[ChangeOut]
+
+
+class ManualOddsIn(BaseModel):
+    """A line the user read in their sportsbook (Hard Rock Bet by default)."""
+
+    game_pk: int
+    market: str
+    selection: str
+    american: float
+    line: float | None = None
+    book: str | None = None
+
+
 class OddsQuoteOut(BaseModel):
     game_pk: int
     book: str

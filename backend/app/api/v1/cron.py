@@ -20,6 +20,12 @@ JOBS: dict[str, Callable[[], dict[str, Any]]] = {
     "refresh": cron_runner.run_refresh,
     "stats": cron_runner.run_slate_stats,
     "close-day": cron_runner.run_close_day,
+    # The 1-minute multi-agent heartbeat (roster, lineups, players, odds, news…).
+    "agents": cron_runner.run_agent_cycle,
+    # Lightweight variants for tight function budgets.
+    "agents-watch": lambda: cron_runner.run_agent_cycle(
+        only=["roster_intelligence", "lineup_intelligence", "news_intelligence"]
+    ),
 }
 
 

@@ -1,24 +1,36 @@
-# EVR MLB AI PRO
+# EVR MLB AI ULTRA
 
-Plataforma profesional de análisis y apuestas de MLB impulsada por IA — una
-combinación de Action Network, FanGraphs y Baseball Savant enfocada
-exclusivamente en béisbol de Grandes Ligas.
+Plataforma autónoma de análisis y apuestas de MLB: un **equipo de 8 agentes de IA
+coordinados por un Supervisor** trabaja las 24 horas para que tú no tengas que
+investigar nada. Entras, y las mejores oportunidades ya están analizadas,
+priorizadas y explicadas.
 
-El **EVR Prediction Engine** analiza automáticamente todos los juegos del día y
-emite probabilidades reales, value bets y parlays con porcentaje de confianza,
-recalibrándose solo cada noche contra los resultados oficiales.
+- **Sistema multi-agente** — rosters, alineaciones, jugadores, lanzadores,
+  bateadores, cuotas, noticias y predicción, cada uno con su especialista.
+  Monitoreo **cada minuto** con historial de cambios. → [`docs/MULTI_AGENT.md`](docs/MULTI_AGENT.md)
+- **Chat IA** — «dame un parlay de 10 picks», «los mejores hits», «¿qué jugador
+  tiene más valor hoy?». El Supervisor consulta a todos los agentes y responde
+  **justificando cada selección** con las estadísticas que la respaldan.
+- **Base de datos de jugadores** — bateadores y lanzadores separados, con perfil
+  individual (bio, foto oficial, splits, forma de los últimos 5 juegos, noticias)
+  búsqueda, orden y comparación.
+- **EVR Prediction Engine** — ensemble que se recalibra solo cada noche contra
+  los resultados oficiales, sin intervención humana.
 
 ```
 ┌─────────────┐   ┌──────────────┐   ┌────────────────────────────┐
 │   NGINX     │──▶│  Next.js 15  │   │  Celery beat + workers     │
-│ (edge, RL)  │   │  (terminal)  │   │  · refresh cada 2 min      │
-│             │──▶│  FastAPI     │◀─▶│  · eventos lineup/pitcher  │
+│ (edge, RL)  │   │  (terminal)  │   │  · agentes cada 1 min      │
+│             │──▶│  FastAPI     │◀─▶│  · refresh cada 2 min      │
 └─────────────┘   │  (REST+JWT)  │   │  · cierre nocturno (IA)    │
                   └──────┬───────┘   └──────────┬─────────────────┘
                          │                      │
                   ┌──────▼──────┐        ┌──────▼──────┐
                   │ PostgreSQL  │        │    Redis    │
                   └─────────────┘        └─────────────┘
+
+   SUPERVISOR AI ──▶ 1 Roster · 2 Lineup · 3 Player · 4 Pitcher
+                     5 Batter · 6 Betting · 7 News · 8 Prediction
 ```
 
 ## Arranque con un solo comando

@@ -116,6 +116,90 @@ class Player(Base):
     position: Mapped[str | None] = mapped_column(String(10))
     bats: Mapped[str | None] = mapped_column(String(1))
     throws: Mapped[str | None] = mapped_column(String(1))
+    # Profile fields (Agent 3 — Player Intelligence)
+    is_pitcher: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    photo_url: Mapped[str | None] = mapped_column(String(255))
+    age: Mapped[int | None] = mapped_column(Integer)
+    birth_date: Mapped[str | None] = mapped_column(String(20))
+    height: Mapped[str | None] = mapped_column(String(12))
+    weight: Mapped[int | None] = mapped_column(Integer)
+    jersey_number: Mapped[str | None] = mapped_column(String(5))
+    roster_status: Mapped[str | None] = mapped_column(String(40))  # Active | Injured List | Minors…
+    injury_note: Mapped[str | None] = mapped_column(Text)
+    profile_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RosterChange(Base):
+    """Roster/lineup movement detected by the monitoring agents (audit history)."""
+
+    __tablename__ = "roster_changes"
+    __table_args__ = (Index("ix_roster_change_detected", "detected_at", "team_mlb_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    team_mlb_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    player_mlb_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    player_name: Mapped[str | None] = mapped_column(String(120))
+    change_type: Mapped[str] = mapped_column(String(40), index=True)
+    # injury | activated | optioned | suspended | rest | added | removed |
+    # lineup_posted | lineup_order | pitcher_change | status_change
+    detail: Mapped[str] = mapped_column(Text, default="")
+    previous_value: Mapped[str | None] = mapped_column(String(255))
+    new_value: Mapped[str | None] = mapped_column(String(255))
+    game_pk: Mapped[int | None] = mapped_column(Integer, index=True)
+    severity: Mapped[str] = mapped_column(String(10), default="info")  # info | warning | critical
+    detected_by: Mapped[str] = mapped_column(String(40), default="roster_intelligence")
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class PlayerNews(Base):
+    """News / injury notes gathered by Agent 7 (News Intelligence)."""
+
+    __tablename__ = "player_news"
+    __table_args__ = (Index("ix_news_player_published", "player_mlb_id", "published_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    player_mlb_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    team_mlb_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    headline: Mapped[str] = mapped_column(String(255))
+    body: Mapped[str] = mapped_column(Text, default="")
+    category: Mapped[str] = mapped_column(String(30), default="news")  # news | injury | transaction
+    source: Mapped[str] = mapped_column(String(60), default="mlb_stats_api")
+    url: Mapped[str | None] = mapped_column(String(255))
+    fingerprint: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class AgentRun(Base):
+    """Execution log for every agent cycle — powers the agent status board."""
+
+    __tablename__ = "agent_runs"
+    __table_args__ = (Index("ix_agent_run_agent_started", "agent", "started_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    agent: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[str] = mapped_column(String(12), default="ok")  # ok | error | skipped
+    summary: Mapped[str] = mapped_column(Text, default="")
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    items_processed: Mapped[int] = mapped_column(Integer, default=0)
+    changes_detected: Mapped[int] = mapped_column(Integer, default=0)
+    duration_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class ChatMessage(Base):
+    """Chat transcript between the user and the Supervisor AI."""
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    session_key: Mapped[str] = mapped_column(String(64), index=True, default="default")
+    role: Mapped[str] = mapped_column(String(12))  # user | assistant
+    content: Mapped[str] = mapped_column(Text)
+    intent: Mapped[str | None] = mapped_column(String(40))
+    agents_consulted: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
 class PlayerStat(Base):
@@ -216,6 +300,7 @@ class Prediction(Base):
     expected_value: Mapped[float | None] = mapped_column(Float)
     edge: Mapped[float | None] = mapped_column(Float)
     kelly_stake: Mapped[float | None] = mapped_column(Float)
+    clv: Mapped[float | None] = mapped_column(Float)  # closing line value vs latest market price
     confidence: Mapped[float] = mapped_column(Float)
     risk: Mapped[str] = mapped_column(String(10), default="medium")
     is_value_bet: Mapped[bool] = mapped_column(Boolean, default=False, index=True)

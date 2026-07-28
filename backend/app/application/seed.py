@@ -34,6 +34,7 @@ from app.infrastructure.providers.registry import ProviderRegistry, get_registry
 logger = get_logger(__name__)
 
 _last_backfill = 0.0  # per-process throttle for the stat backfill
+_phase = 0  # alternates stat backfill ↔ light agent pass
 
 
 def _count(db: Session, model, *conditions) -> int:
@@ -83,16 +84,40 @@ def ensure_today_seeded(db: Session, registry: ProviderRegistry | None = None) -
 
 
 def _maybe_backfill(db: Session, reg: ProviderRegistry, today: date) -> int:
-    """Throttled per process so overlapping requests don't all fetch at once."""
-    global _last_backfill
+    """Throttled per process so overlapping requests don't all fetch at once.
+
+    Alternates between two cheap phases so neither ever fills a serverless
+    function's budget: (a) player/team stat backfill, (b) a light agent pass that
+    fills profiles (photo, bio) and publishes the news feed.
+    """
+    global _last_backfill, _phase
     now = time.monotonic()
     if now - _last_backfill < settings.SEED_BACKFILL_MIN_INTERVAL:
         return 0
     _last_backfill = now
+    _phase += 1
+    if _phase % 2 == 0:
+        return _light_agent_pass(db, reg, today)
     processed = _advance_backfill(db, reg, today)
     if processed:
         _regenerate_ready_games(db, today)
     return processed
+
+
+def _light_agent_pass(db: Session, reg: ProviderRegistry, today: date) -> int:
+    """Run only the cheap, time-boxed agents so profiles and news fill in even
+    where no cron is available (e.g. Vercel Hobby)."""
+    try:
+        from app.agents import SUPERVISOR
+
+        result = SUPERVISOR.run_cycle(
+            db, registry=reg, day=today,
+            only=["player_intelligence", "news_intelligence"],
+        )
+        return sum(r.items_processed for r in result.reports)
+    except Exception as exc:  # noqa: BLE001 — never break a read
+        logger.warning("light agent pass failed", extra={"error": str(exc)})
+        return 0
 
 
 def _advance_backfill(db: Session, reg: ProviderRegistry, today: date) -> int:

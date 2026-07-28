@@ -5,18 +5,24 @@ import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import type {
+  AgentCycle,
   AgentParlay,
+  AgentStatus,
   Bankroll,
   Bet,
   EngineMetric,
   Game,
   HitsBoardRow,
   ModelWeight,
+  NewsItem,
   OddsQuote,
   Parlay,
+  PlayerListResponse,
+  PlayerProfile,
   PlayerSearchResult,
   PlayerStats,
   Prediction,
+  RosterChangeItem,
   SourceStatus,
   Team,
   User,
@@ -66,6 +72,67 @@ export const useGamePredictions = (gamePk: number) =>
 
 export const useParlays = () =>
   useQuery({ queryKey: ["parlays"], queryFn: () => api<Parlay[]>("/parlays/daily"), refetchInterval: LIVE_MS });
+
+// ── multi-agent platform ─────────────────────────────────────────────────────
+const AGENT_POLL_MS = 60_000; // the monitoring cycle runs every minute
+
+export const useAgentStatus = () =>
+  useQuery({
+    queryKey: ["agents", "status"],
+    queryFn: () => api<AgentStatus[]>("/agents/status"),
+    refetchInterval: AGENT_POLL_MS,
+  });
+
+export const useLastCycle = () =>
+  useQuery({
+    queryKey: ["agents", "last-cycle"],
+    queryFn: () => api<AgentCycle>("/agents/last-cycle"),
+    refetchInterval: 30_000,
+  });
+
+export const useChanges = (limit = 30) =>
+  useQuery({
+    queryKey: ["agents", "changes", limit],
+    queryFn: () => api<RosterChangeItem[]>(`/agents/changes?limit=${limit}`),
+    refetchInterval: AGENT_POLL_MS,
+  });
+
+export const useNews = (limit = 20) =>
+  useQuery({
+    queryKey: ["agents", "news", limit],
+    queryFn: () => api<NewsItem[]>(`/agents/news?limit=${limit}`),
+    refetchInterval: AGENT_POLL_MS,
+  });
+
+export const usePlayerDirectory = (params: {
+  kind: string;
+  q?: string;
+  sort?: string;
+  order?: string;
+  limit?: number;
+  offset?: number;
+}) =>
+  useQuery({
+    queryKey: ["players", "directory", params],
+    queryFn: () => {
+      const search = new URLSearchParams({
+        kind: params.kind,
+        sort: params.sort ?? "name",
+        order: params.order ?? "asc",
+        limit: String(params.limit ?? 50),
+        offset: String(params.offset ?? 0),
+      });
+      if (params.q) search.set("q", params.q);
+      return api<PlayerListResponse>(`/players?${search.toString()}`);
+    },
+  });
+
+export const usePlayerProfile = (mlbId: number | null) =>
+  useQuery({
+    queryKey: ["players", "profile", mlbId],
+    queryFn: () => api<PlayerProfile>(`/players/${mlbId}/profile`),
+    enabled: mlbId != null,
+  });
 
 export const useHitsBoard = () =>
   useQuery({

@@ -2,7 +2,7 @@
 
 /** Inicio en "modo fácil": explica qué apostar hoy en lenguaje para principiantes. */
 import Link from "next/link";
-import { ArrowRight, Layers, Sparkles, Swords, Target } from "lucide-react";
+import { ArrowRight, Bot, Layers, MessageSquare, Sparkles, Target } from "lucide-react";
 
 import { PickCard } from "@/components/simple/pick-card";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PanelSkeleton } from "@/components/ui/skeleton";
 import { fmtPct } from "@/lib/format";
 import { outOfTen } from "@/lib/plain";
-import { useAgentParlays, useDailyPredictions, useHitsBoard } from "@/lib/queries";
+import { useAgentParlays, useDailyPredictions, useHitsBoard, useLastCycle } from "@/lib/queries";
 
 const CATEGORY_LABELS: Record<string, string> = {
   hits: "Solo Hits",
@@ -23,6 +23,7 @@ export default function HomePage() {
   const preds = useDailyPredictions();
   const hits = useHitsBoard();
   const agents = useAgentParlays();
+  const lastCycle = useLastCycle();
 
   const safest = [...(preds.data ?? [])]
     .filter((p) => p.probability >= 0.55)
@@ -126,20 +127,41 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* Atajo a los agentes */}
-      <Link
-        href="/agents"
-        className="flex items-center justify-between rounded-xl border border-terminal-border bg-terminal-panel p-4 hover:border-terminal-accent/50"
-      >
-        <div className="flex items-center gap-3">
-          <Swords className="h-5 w-5 text-terminal-accent" />
-          <div>
-            <div className="font-semibold text-terminal-text">4 expertos arman combinadas por ti</div>
-            <div className="text-xs text-terminal-muted">Mira cómo debaten y eligen la mejor jugada del día</div>
+      {/* Atajos: chat y agentes */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Link
+          href="/chat"
+          className="flex items-center justify-between rounded-xl border border-terminal-border bg-terminal-panel p-4 hover:border-terminal-accent/50"
+        >
+          <div className="flex items-center gap-3">
+            <MessageSquare className="h-5 w-5 text-terminal-accent" />
+            <div>
+              <div className="font-semibold text-terminal-text">Pregúntale a la IA</div>
+              <div className="text-xs text-terminal-muted">
+                «Dame un parlay de 5 picks» · «los mejores hits»
+              </div>
+            </div>
           </div>
-        </div>
-        <ArrowRight className="h-5 w-5 text-terminal-muted" />
-      </Link>
+          <ArrowRight className="h-5 w-5 text-terminal-muted" />
+        </Link>
+        <Link
+          href="/agents"
+          className="flex items-center justify-between rounded-xl border border-terminal-border bg-terminal-panel p-4 hover:border-terminal-accent/50"
+        >
+          <div className="flex items-center gap-3">
+            <Bot className="h-5 w-5 text-terminal-accent" />
+            <div>
+              <div className="font-semibold text-terminal-text">8 agentes trabajando 24/7</div>
+              <div className="text-xs text-terminal-muted">
+                {lastCycle.data?.started_at
+                  ? `Última revisión: ${new Date(lastCycle.data.started_at).toLocaleTimeString()}`
+                  : "Rosters, lineups, lesiones y cuotas"}
+              </div>
+            </div>
+          </div>
+          <ArrowRight className="h-5 w-5 text-terminal-muted" />
+        </Link>
+      </div>
     </div>
   );
 }

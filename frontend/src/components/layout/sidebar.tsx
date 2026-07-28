@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Bot,
   Brain,
   CalendarDays,
   Layers,
   LineChart,
+  MessageSquare,
   Settings,
   Sparkles,
-  Swords,
   Target,
   Users,
   Wallet,
@@ -21,10 +22,11 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/", label: "Inicio (Fácil)", icon: Sparkles },
+  { href: "/chat", label: "Chat IA", icon: MessageSquare },
+  { href: "/agents", label: "Agentes IA", icon: Bot },
   { href: "/games", label: "Juegos", icon: CalendarDays },
   { href: "/predictions", label: "Predicciones", icon: Target },
   { href: "/parlays", label: "Parlays", icon: Layers },
-  { href: "/agents", label: "Agentes", icon: Swords },
   { href: "/players", label: "Jugadores", icon: Users },
   { href: "/stats", label: "Motor IA", icon: Brain },
   { href: "/bankroll", label: "Bankroll", icon: Wallet },

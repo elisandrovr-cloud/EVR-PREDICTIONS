@@ -14,6 +14,39 @@ Documentación interactiva: **`/docs`** (Swagger UI) y **`/redoc`**. Prefijo:
 | GET | `/auth/oauth/{google\|github}/login` | Redirección OAuth |
 | GET | `/auth/oauth/{provider}/callback` | Intercambio de código → tokens |
 
+## Agentes IA (multi-agente)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/agents/status` | Estado del último run de cada uno de los 8 agentes |
+| GET | `/agents/roster` | El equipo de agentes y sus especialidades |
+| GET | `/agents/last-cycle` | Último ciclo de monitoreo + marca de "última actualización" |
+| POST | `/agents/refresh` | **ACTUALIZAR AHORA** — ciclo completo síncrono (`?only=` para un subconjunto) |
+| GET | `/agents/changes` | Historial de movimientos (`severity`, `change_type`, `limit`) |
+| GET | `/agents/news` | Feed de noticias y lesiones (`category`) |
+| POST | `/agents/chat` | Preguntar al Supervisor → respuesta única justificada |
+| GET | `/agents/chat/history` | Transcripción de la conversación |
+
+Detalle completo en [`MULTI_AGENT.md`](MULTI_AGENT.md).
+
+## Jugadores
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/players?kind=batters\|pitchers\|all` | Directorio con `q`, `team_mlb_id`, `status`, `sort`, `order`, `limit`, `offset` |
+| GET | `/players/search?q=` | Autocompletado |
+| GET | `/players/{mlb_id}/profile` | Perfil completo: bio, foto, stats, últimos 5 juegos, props de hoy, noticias y movimientos |
+| GET | `/players/{mlb_id}/stats` | Snapshots crudos por scope |
+| GET | `/players/compare?ids=1,2,3` | Comparación lado a lado (2–4 jugadores) |
+
+## Cuotas
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/odds/books` | Proveedores de cuotas disponibles y cuál está activo |
+| POST | `/odds/manual` | Cargar una línea vista en tu casa de apuestas (Hard Rock Bet por defecto) y re-valorar la selección |
+| GET | `/odds/today` | Cuotas capturadas hoy |
+
 ## Juegos
 
 | Método | Ruta | Descripción |

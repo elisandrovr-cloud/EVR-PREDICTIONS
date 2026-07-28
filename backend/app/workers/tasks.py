@@ -85,6 +85,15 @@ def refresh_slate_stats() -> dict[str, int]:
     return {"pitchers": pitchers, "batters": batters, "teams": len(team_ids)}
 
 
+@celery_app.task(name="app.workers.tasks.run_agent_cycle")
+def run_agent_cycle(only: list[str] | None = None) -> dict[str, Any]:
+    """One full pass of the multi-agent monitoring cycle (every minute)."""
+    from app.agents import SUPERVISOR
+
+    with SessionLocal() as db:
+        return SUPERVISOR.run_cycle(db, day=date.today(), only=only).as_dict()
+
+
 @celery_app.task(name="app.workers.tasks.generate_predictions")
 def generate_predictions(game_pk: int | None = None) -> dict[str, int]:
     from app.application.prediction_service import generate_for_day

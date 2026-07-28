@@ -55,7 +55,7 @@ def sync_teams(db: Session, registry: ProviderRegistry | None = None) -> int:
     return count
 
 
-def _extract_lineups(g: dict[str, Any]) -> dict[str, Any]:
+def extract_lineups(g: dict[str, Any]) -> dict[str, Any]:
     lineups = g.get("lineups") or {}
     out: dict[str, list[dict[str, Any]]] = {"home": [], "away": []}
     for side in ("home", "away"):
@@ -68,11 +68,21 @@ def _extract_lineups(g: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def sync_schedule(db: Session, day: date, registry: ProviderRegistry | None = None) -> dict[str, int]:
-    """Upsert today's games; emit events on lineup/pitcher changes and finals."""
+def sync_schedule(
+    db: Session,
+    day: date,
+    registry: ProviderRegistry | None = None,
+    payload: list[dict[str, Any]] | None = None,
+) -> dict[str, int]:
+    """Upsert today's games; emit events on lineup/pitcher changes and finals.
+
+    `payload` lets a caller that already fetched the schedule (e.g. the Lineup
+    Intelligence agent, which diffs it first) reuse that response instead of
+    hitting the API twice.
+    """
     reg = registry or get_registry()
     stats = {"games": 0, "lineups_confirmed": 0, "pitcher_changes": 0, "finals": 0}
-    for g in reg.mlb.schedule(day):
+    for g in (payload if payload is not None else reg.mlb.schedule(day)):
         game_pk = g["gamePk"]
         row = db.scalar(select(Game).where(Game.game_pk == game_pk))
         teams = g.get("teams", {})
@@ -82,7 +92,7 @@ def sync_schedule(db: Session, day: date, registry: ProviderRegistry | None = No
         new_status = status_map.get(status, status)
         home_p = (home.get("probablePitcher") or {}).get("id")
         away_p = (away.get("probablePitcher") or {}).get("id")
-        lineups = _extract_lineups(g)
+        lineups = extract_lineups(g)
         lineup_confirmed = bool(lineups["home"]) and bool(lineups["away"])
 
         if row is None:

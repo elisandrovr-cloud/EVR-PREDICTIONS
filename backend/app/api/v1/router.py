@@ -8,12 +8,26 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from app.api.deps import DbDep
-from app.api.v1 import admin, auth, bankroll, cron, games, parlays, players, predictions, stats
+from app.api.v1 import (
+    admin,
+    agents,
+    auth,
+    bankroll,
+    cron,
+    games,
+    odds,
+    parlays,
+    players,
+    predictions,
+    stats,
+)
 from app.core.config import settings
 from app.infrastructure.db.models import Game, PlayerStat, Prediction, Team
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
+api_router.include_router(agents.router)
+api_router.include_router(odds.router)
 api_router.include_router(games.router)
 api_router.include_router(predictions.router)
 api_router.include_router(parlays.router)

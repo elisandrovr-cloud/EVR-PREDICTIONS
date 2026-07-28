@@ -87,6 +87,19 @@ def run_slate_stats() -> dict[str, int]:
             "predictions": preds.get("predictions", 0)}
 
 
+def run_agent_cycle(only: list[str] | None = None) -> dict[str, Any]:
+    """One full multi-agent monitoring cycle (the 1-minute heartbeat).
+
+    Every agent is time-boxed internally, so the whole cycle stays inside a
+    serverless function's budget; work that doesn't fit continues next minute.
+    """
+    from app.agents import SUPERVISOR
+
+    with SessionLocal() as db:
+        result = SUPERVISOR.run_cycle(db, day=date.today(), only=only)
+        return result.as_dict()
+
+
 def run_close_day() -> dict[str, Any]:
     """Nightly no-human-in-the-loop learning: settle, recalibrate, retrain, snapshot."""
     yesterday = date.today() - timedelta(days=1)
