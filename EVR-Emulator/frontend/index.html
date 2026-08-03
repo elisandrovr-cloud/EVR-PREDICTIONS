@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EVR Emulator · Elisandro</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">EVR</span>
+      <span class="sub">Elisandro Console</span>
+    </div>
+    <div class="status">
+      <span id="statusDot" class="dot off"></span>
+      <span id="statusText">desconectado</span>
+      <span id="deviceModel" class="chip"></span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Pantalla del dispositivo -->
+    <section class="screen-panel">
+      <div id="deviceFrame" class="device-frame phone">
+        <div class="bezel">
+          <div class="notch"></div>
+          <div class="screen-wrap">
+            <canvas id="screen" width="1080" height="1920" aria-label="pantalla del emulador"></canvas>
+            <div id="screenOverlay" class="screen-overlay">
+              <div class="hint">
+                <b>No hay ningún Android en marcha</b><br />
+                <small>
+                  La consola se conecta sola en cuanto detecte un dispositivo.<br />
+                  Arranca el Android:<br />
+                  · <b>Windows:</b> <code>scripts\launch-vm.ps1</code><br />
+                  · <b>Linux/macOS:</b> <code>scripts/launch-vm.sh</code>, un AVD de
+                  Android Studio o un teléfono por USB<br />
+                  Cuando arranque, aquí verás la pantalla:
+                  clic = toque, arrastrar = deslizar, rueda = scroll.
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="screen-controls">
+        <span id="connState" class="conn">buscando dispositivo…</span>
+        <span id="fpsMeter" class="chip"></span>
+        <label class="toggle"><input type="checkbox" id="autoRefresh" checked /> En vivo</label>
+        <select id="refreshRate" title="Fotogramas por segundo del stream">
+          <option value="2">2 fps</option>
+          <option value="4">4 fps</option>
+          <option value="8" selected>8 fps</option>
+          <option value="15">15 fps</option>
+        </select>
+        <select id="frameType" title="Forma del marco">
+          <option value="phone" selected>📱 Teléfono</option>
+          <option value="tablet">📟 Tablet</option>
+        </select>
+        <span class="spacer"></span>
+        <button class="nav" data-key="KEYCODE_BACK">◁</button>
+        <button class="nav" data-key="KEYCODE_HOME">○</button>
+        <button class="nav" data-key="KEYCODE_APP_SWITCH">▢</button>
+        <button class="nav" data-key="KEYCODE_POWER">⏻</button>
+      </div>
+      <div class="text-inject">
+        <input id="textInput" type="text" placeholder="Escribir texto en el dispositivo…" />
+        <button id="btnText">Enviar</button>
+        <button id="btnEnter" data-key="KEYCODE_ENTER">↵</button>
+      </div>
+    </section>
+
+    <!-- Panel lateral -->
+    <aside class="side">
+      <!-- Agent switcher -->
+      <div class="card">
+        <h3>Agent Switcher <small>· perfil de dispositivo</small></h3>
+        <p class="muted">La VM se presenta como este modelo Android (privacidad: no expone tu PC).</p>
+        <select id="profileSelect"></select>
+        <button id="btnApplyProfile" class="primary full">Aplicar perfil (reinicia)</button>
+        <div id="profileProps" class="props"></div>
+      </div>
+
+      <!-- Apps -->
+      <div class="card">
+        <h3>Apps</h3>
+        <button id="btnTikTok" class="tiktok full">▶ Lanzar TikTok</button>
+        <div class="row">
+          <input id="pkgInput" type="text" placeholder="paquete (com.ejemplo.app)" />
+          <button id="btnLaunchPkg">Abrir</button>
+        </div>
+        <div class="row">
+          <input id="apkInput" type="text" placeholder="ruta APK en el host…" />
+          <button id="btnInstallApk">Instalar</button>
+        </div>
+        <button id="btnPlayTikTok" class="full ghost">Buscar TikTok en Play Store</button>
+      </div>
+
+      <!-- VM -->
+      <div class="card">
+        <h3>Máquina virtual</h3>
+        <button id="btnStatus" class="full ghost">Refrescar estado</button>
+        <div class="row">
+          <select id="resetMode">
+            <option value="overlay">Formatear (overlay limpio)</option>
+            <option value="fresh">Disco vacío (reinstalar)</option>
+          </select>
+          <button id="btnFormat" class="danger">Formatear</button>
+        </div>
+        <p class="muted">Apaga QEMU antes de formatear.</p>
+      </div>
+
+      <!-- Log -->
+      <div class="card log-card">
+        <h3>Registro</h3>
+        <div id="log" class="log"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

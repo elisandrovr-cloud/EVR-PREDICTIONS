@@ -1,0 +1,21 @@
+node_modules/
+
+# Binarios portables descargados por fetch-binaries.(ps1|sh)
+bin/platform-tools/
+bin/scrcpy/
+bin/qemu/
+
+# Imagenes de la VM (varios GB)
+images/*.iso
+images/*.img
+images/*.vdi
+images/*.qcow2
+
+logs/*.log
+tmp/
+downloads/
+
+# Configuracion local
+.env
+middleware/.env
+*.local
