@@ -134,12 +134,12 @@ make seed          # fuerza bootstrap de datos
 docs/              # documentación extendida
 ```
 
-## Otros proyectos en este repositorio
+## Proyectos relacionados
 
-- [`EVR-Emulator/`](EVR-Emulator/README.md) — **EVR Emulator "Elisandro"**:
-  entorno de virtualización Android (QEMU + BlissOS) con middleware Node.js
-  (REST + WebSocket + ADB) y consola web con pantalla en vivo. Es un proyecto
-  independiente del backend de MLB; se arranca desde su propia carpeta.
+- [**EVR Emulator "Elisandro"**](https://github.com/elisandrovr-cloud/EVR-EMULADOR)
+  — entorno de virtualización Android (QEMU + BlissOS) con middleware Node.js
+  (REST + WebSocket + ADB) y consola web con pantalla en vivo. Vive en su propio
+  repositorio.
 
 ## Aviso
 
